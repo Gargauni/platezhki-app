@@ -85,6 +85,13 @@ button{cursor:pointer}
 #tagUrgent[aria-pressed="true"]{background:var(--bad);border-color:var(--bad);color:var(--surface)}
 #tagReq{border-color:var(--info);color:var(--info);font-weight:600}
 #tagReq[aria-pressed="true"]{background:var(--info);border-color:var(--info);color:var(--surface)}
+/* ПК (широкий экран): карточка ИП слева, кнопки обычного размера справа в ряд; «Выгрузить в банк» — крайняя справа */
+@media (min-width:820px){
+  .top{grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:16px}
+  .top .actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}
+  .top .actions .btn{padding:9px 16px;font-size:.95rem}
+  #btnScan{order:1} #btnAdd{order:2} #btnExport{order:3}
+}
 .top .sub{color:var(--muted);font-size:.9rem;margin-top:2px}
 .actions{display:flex;flex-wrap:wrap;gap:8px}
 .btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 14px;font-weight:500;line-height:1.2}
@@ -246,8 +253,8 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
   <div class="notice" id="notice" hidden></div>
 
   <section class="card" id="openCard">
-    <h2>Вход в трекер</h2>
-    <p>Данные хранятся в закрытом репозитории на GitHub. Введите ключ доступа один раз на этом устройстве — дальше трекер будет открываться сразу, а изменения сохраняться сами.</p>
+    <h2 id="openTitle">Вход в трекер</h2>
+    <p id="openLead">Данные хранятся в закрытом репозитории на GitHub. Введите ключ доступа один раз на этом устройстве — дальше трекер будет открываться сразу, а изменения сохраняться сами.</p>
     <form class="f" id="ghForm" style="width:100%;max-width:560px" autocomplete="off">
       <label for="ghToken">Ключ GitHub</label>
       <input id="ghToken" class="mono" type="password" placeholder="github_pat_…" spellcheck="false" autocomplete="off">
@@ -545,7 +552,7 @@ F("fileInput").onchange = async e => { const f = e.target.files[0]; e.target.val
 (async () => {
   if (!FS.canFS){ F("fsNote").hidden = false; return; }
   const h = await idbGet("handle");
-  if (h){ const b = F("btnReopen"); b.hidden = false; b.textContent = "Открыть " + h.name; b.onclick = () => loadHandle(h).catch(() => toast("Файл не найден — выберите его заново")); }
+  if (h){ const b = F("btnReopen"); b.hidden = false; b.textContent = "Открыть " + h.name; if (LOCAL){ b.classList.add("primary"); F("btnOpen").classList.remove("primary"); } b.onclick = () => loadHandle(h).catch(() => toast("Файл не найден — выберите его заново")); }
 })();
 
 /* ---------- хранение на GitHub: без GitHub Desktop, с любого устройства ---------- */
@@ -710,7 +717,20 @@ F("btnUpload").onclick = async () => {
 
 document.addEventListener("visibilitychange", () => { if (!document.hidden) ghRefresh(); });
 setInterval(() => { if (GH.on && !document.hidden && !FS.dirty) ghRefresh(); }, 120000);
-(() => { const t = lsGet("gh.token"); if (t) ghLogin(t); else setTimeout(() => F("ghToken").focus(), 50); })();
+// Открыто как файл с диска (рабочий ПК через GitHub Desktop) — главный способ «Открыть tracker.json», вход по ключу — запасной
+const LOCAL = location.protocol === "file:";
+if (LOCAL){
+  F("openTitle").textContent = "Откройте файл данных";
+  F("openLead").innerHTML = 'Все документы, реквизиты и статусы хранятся в файле <span class="mono">data/tracker.json</span> в папке проекта. Откройте его, и изменения будут сохраняться прямо в него.';
+  const det = $("#openCard details"), gh = [F("ghForm"), F("btnGh").closest(".actions"), F("ghErr")];
+  det.querySelector("summary").textContent = "Войти по ключу GitHub (без GitHub Desktop)";
+  gh.forEach(el => det.appendChild(el));                         // форма ключа — внутрь раскрывающегося блока
+  F("openCard").insertBefore(det.querySelector(".actions"), det); // кнопки файла — наверх
+  F("openCard").insertBefore(F("fsNote"), det);
+  F("btnOpen").classList.add("primary");
+
+}
+(() => { const t = lsGet("gh.token"); if (t) ghLogin(t); else if (!LOCAL) setTimeout(() => F("ghToken").focus(), 50); })();
 
 function persist(){
   FS.dirty = true; renderFileBar();
