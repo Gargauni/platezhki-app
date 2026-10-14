@@ -92,6 +92,19 @@ button{cursor:pointer}
 .payer{border-left:6px solid var(--accent);background:var(--accent-soft);border-radius:8px;padding:10px 14px;display:grid;gap:2px}
 .payer b{font-size:1.05rem}
 .payer span{font-size:.85rem;color:var(--muted)}
+.drop{display:grid;gap:4px;justify-items:start;border:2px dashed var(--line);border-radius:var(--r);padding:18px;cursor:pointer;background:var(--sunk)}
+.drop:hover,.drop:focus-within{border-color:var(--accent)}
+.drop b{color:var(--accent-text,var(--accent))}
+.drop span{font-size:.85rem;color:var(--muted)}
+.drop input{font-size:.85rem;max-width:100%}
+.scanlist{margin:0;padding:0;list-style:none;display:grid;gap:6px}
+.scanlist li{display:flex;justify-content:space-between;gap:10px;font-size:.88rem;border:1px solid var(--line);border-radius:8px;padding:7px 10px;min-width:0}
+.scanlist li span:first-child{min-width:0;overflow-wrap:anywhere}
+.scanlist li .st{color:var(--muted);white-space:nowrap;font-family:var(--f-num);font-size:.8rem}
+.check{display:flex;gap:8px;align-items:center;font-size:.92rem}
+.pending{font-size:.85rem;color:var(--muted);display:grid;gap:4px}
+.howscan summary{cursor:pointer;color:var(--accent-text,var(--accent));font-weight:500}
+.howscan ol{margin-top:8px}
 .filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px;font-size:.88rem}
@@ -188,6 +201,7 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
       <select class="themesel" id="themeSel" aria-label="Тема оформления"><option value="classic">Тема: классика</option><option value="ocean">Тема: океан</option></select>
       <button class="btn" id="btnReq" type="button" disabled>Реквизиты</button>
       <button class="btn" id="btnExport" type="button" disabled>Выгрузить в банк</button>
+      <button class="btn" id="btnScan" type="button" hidden>Добавить скан</button>
       <button class="btn primary" id="btnAdd" type="button" disabled>+ Документ</button>
     </div>
   </header>
@@ -371,6 +385,39 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
   </div>
 </div>
 
+<!-- Сканы и файлы на разбор: уходят в закрытый репозиторий platezhki-inbox, Claude разбирает их на личном ПК -->
+<div class="overlay" id="ovScan" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="scanTitle">
+    <div class="sh-head"><h2 id="scanTitle">Добавить документы</h2><button class="x" type="button" data-close aria-label="Закрыть">×</button></div>
+    <div class="sh-body">
+      <div class="payer" id="scanOrg"></div>
+      <details class="howscan">
+        <summary>Как отсканировать на iPhone</summary>
+        <ol class="howto">
+          <li>Откройте «Файлы» → вкладка «Обзор» → «…» вверху → <b>«Сканировать документы»</b>. Или «Заметки» → скрепка → «Сканировать документы».</li>
+          <li>Наведите на лист: сканер сам найдёт края и снимет. Снимите все страницы документа подряд → «Сохранить».</li>
+          <li>Вернитесь сюда → «Выбрать файлы» → выберите сохранённый PDF.</li>
+        </ol>
+      </details>
+      <label class="drop" for="scanFiles">
+        <b>Выбрать файлы</b>
+        <span>PDF, фото, архив Диадока (ZIP), счёт Excel. Можно несколько сразу.</span>
+        <input type="file" id="scanFiles" multiple accept="application/pdf,image/*,.zip,.xml,.xls,.xlsx,.csv">
+      </label>
+      <ul class="scanlist" id="scanList" hidden></ul>
+      <label class="check"><input type="checkbox" id="scanReq"> Только для реквизитов — платить не нужно</label>
+      <div class="f wide"><label for="scanNote">Комментарий (необязательно)</label><input id="scanNote" autocomplete="off" placeholder="например: срочно, просрочка; или: это Юрал, поставка от 05.10"></div>
+      <div class="banner bad" id="scanErr" hidden></div>
+      <div class="pending" id="scanPending"></div>
+    </div>
+    <div class="sh-foot">
+      <span class="grow"></span>
+      <button class="btn" type="button" data-close>Закрыть</button>
+      <button class="btn primary" type="button" id="btnUpload" disabled>Отправить на разбор</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast" role="status" hidden></div>
 
 <script src="core.js"></script>
@@ -428,8 +475,8 @@ const clone = x => JSON.parse(JSON.stringify(x));
 const b64enc = str => { const b = new TextEncoder().encode(str); let s = ""; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(s); };
 const b64dec = b64 => new TextDecoder().decode(Uint8Array.from(atob(String(b64).replace(/\s/g, "")), c => c.charCodeAt(0)));
 const ghHeaders = () => ({ Accept: "application/vnd.github+json", Authorization: "Bearer " + GH.token, "X-GitHub-Api-Version": "2022-11-28" });
-function gh(method, url, body){
-  return fetch(GH.api + "/repos/" + GH.owner + "/" + GH.repo + url, { method, cache: "no-store",
+function gh(method, url, body, repo){
+  return fetch(GH.api + "/repos/" + GH.owner + "/" + (repo || GH.repo) + url, { method, cache: "no-store",
     headers: { ...ghHeaders(), ...(body ? { "Content-Type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined });
 }
 const ghFail = status => Object.assign(new Error("github " + status), { status });
@@ -447,7 +494,7 @@ async function ghLogin(token){
   GH.token = token.trim(); F("ghErr").hidden = true; F("btnGh").disabled = true; F("btnGh").textContent = "Загружаю…";
   try {
     const r = await ghFetch();
-    GH.on = true; GH.sha = r.sha; GH.base = clone(r.data); GH.err = ""; lsSet("gh.token", GH.token);
+    GH.on = true; GH.sha = r.sha; GH.base = clone(r.data); GH.err = ""; lsSet("gh.token", GH.token); F("btnScan").hidden = false;
     FS.dirty = false; FS.savedAt = ""; useData(r.data, "GitHub");
   } catch (e) {
     F("ghErr").textContent = ghWhy(e); F("ghErr").hidden = false;
@@ -502,6 +549,77 @@ function ghLogout(){
   try { localStorage.removeItem("platezhki.gh.token"); } catch {}
   location.reload();
 }
+/* ---------- сканы на разбор ---------- */
+// Сканы нельзя хранить рядом с данными (правило: никаких сканов в репозитории platezhki),
+// поэтому они уходят в отдельный закрытый репозиторий platezhki-inbox, папка inbox/ГГГГ-ММ-ДД/.
+// Claude на личном ПК забирает их, разбирает и удаляет.
+const INBOX = { repo: "platezhki-inbox", branch: "main", files: [] };
+const fileB64 = f => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1] || ""); r.onerror = () => rej(r.error); r.readAsDataURL(f); });
+const kb = n => n < 1048576 ? Math.max(1, Math.round(n / 1024)) + " КБ" : (n / 1048576).toFixed(1).replace(".", ",") + " МБ";
+const safeName = s => String(s).replace(/[\\/:*?"<>|#%\r\n\t]+/g, " ").replace(/\s+/g, " ").trim().slice(-80) || "файл";
+const inboxWhy = e => e && (e.status === 403 || e.status === 404) ? "Нет доступа к репозиторию platezhki-inbox. Добавьте его в ключ на github.com (Repository access → platezhki-inbox, Contents: Read and write)."
+  : e && e.status === 409 ? "Репозиторий platezhki-inbox пустой. Создайте в нём README (Add file → Create new file) и повторите."
+  : ghWhy(e);
+F("btnScan").onclick = () => {
+  const o = orgById(S.org) || {};
+  F("scanOrg").innerHTML = `<b>Для: ${esc(o.name || "—")}</b><span>Документы попадут в кабинет этого ИП. Сменить — закройте окно и выберите другую карточку ИП.</span>`;
+  INBOX.files = []; F("scanFiles").value = ""; F("scanReq").checked = false; F("scanNote").value = ""; F("scanErr").hidden = true;
+  renderScanList(); openSheet("ovScan"); loadPending();
+};
+F("scanFiles").addEventListener("change", e => { INBOX.files = [...e.target.files].map(f => ({ f, st: "" })); renderScanList(); });
+function renderScanList(){
+  const l = F("scanList"); l.hidden = !INBOX.files.length;
+  l.innerHTML = INBOX.files.map(x => `<li><span>${esc(x.f.name)}</span><span class="st">${esc(x.st || kb(x.f.size))}</span></li>`).join("");
+  F("btnUpload").disabled = !INBOX.files.length;
+}
+async function loadPending(){
+  const p = F("scanPending"); p.textContent = "Проверяю, что ждёт разбора…";
+  try {
+    const r = await gh("GET", "/git/trees/" + INBOX.branch + "?recursive=1", null, INBOX.repo);
+    if (!r.ok) throw ghFail(r.status);
+    const files = (await r.json()).tree.filter(t => t.type === "blob" && t.path.startsWith("inbox/") && !t.path.endsWith(".txt"));
+    p.innerHTML = files.length ? `<b>Ждут разбора: ${files.length}</b>` + files.slice(-8).map(t => `<span>${esc(t.path.split("/").slice(1).join(" · "))}</span>`).join("")
+      : "Очередь разбора пуста.";
+  } catch (e) { p.textContent = inboxWhy(e); }
+}
+// Все выбранные файлы — одним коммитом через Git Data API (подходит и для файлов больше 1 МБ)
+F("btnUpload").onclick = async () => {
+  const o = orgById(S.org) || {}, note = F("scanNote").value.trim(), req = F("scanReq").checked;
+  const now = new Date(), day = C.iso(now), hhmm = now.toTimeString().slice(0, 8).replace(/:/g, "");
+  const tag = C.orgShort(o.name || "").replace(/\s+/g, "") + (req ? "_РЕКВИЗИТЫ" : "");
+  F("btnUpload").disabled = true; F("scanErr").hidden = true;
+  try {
+    const tree = [];
+    for (const x of INBOX.files){
+      x.st = "загружаю…"; renderScanList();
+      const r = await gh("POST", "/git/blobs", { content: await fileB64(x.f), encoding: "base64" }, INBOX.repo);
+      if (!r.ok) throw ghFail(r.status);
+      tree.push({ path: `inbox/${day}/${hhmm}_${tag}_${safeName(x.f.name)}`, mode: "100644", type: "blob", sha: (await r.json()).sha });
+      x.st = "✓"; renderScanList();
+    }
+    const info = `Организация: ${o.name || ""} (${o.inn || ""})\n` + (req ? "Только для реквизитов — не платить\n" : "") + (note ? "Комментарий: " + note + "\n" : "")
+      + "Файлы:\n" + INBOX.files.map(x => "- " + x.f.name).join("\n") + "\n";
+    tree.push({ path: `inbox/${day}/${hhmm}_${tag}_заметка.txt`, mode: "100644", type: "blob", content: info });
+    for (let attempt = 0; ; attempt++){
+      const ref = await gh("GET", "/git/ref/heads/" + INBOX.branch, null, INBOX.repo);
+      if (!ref.ok) throw ghFail(ref.status);
+      const head = (await ref.json()).object.sha;
+      const base = await gh("GET", "/git/commits/" + head, null, INBOX.repo); if (!base.ok) throw ghFail(base.status);
+      const t = await gh("POST", "/git/trees", { base_tree: (await base.json()).tree.sha, tree }, INBOX.repo); if (!t.ok) throw ghFail(t.status);
+      const c = await gh("POST", "/git/commits", { message: `Сканы: ${INBOX.files.length} шт. — ${C.orgShort(o.name || "")}${req ? " (реквизиты)" : ""}`, tree: (await t.json()).sha, parents: [head] }, INBOX.repo);
+      if (!c.ok) throw ghFail(c.status);
+      const u = await gh("PATCH", "/git/refs/heads/" + INBOX.branch, { sha: (await c.json()).sha }, INBOX.repo);
+      if (u.ok) break;
+      if (u.status !== 422 || attempt > 2) throw ghFail(u.status);   // кто-то успел загрузить одновременно — повторяем
+    }
+    toast(`Отправлено на разбор: ${INBOX.files.length} ${plural(INBOX.files.length, "файл", "файла", "файлов")}`);
+    INBOX.files = []; F("scanFiles").value = ""; F("scanNote").value = ""; F("scanReq").checked = false; renderScanList(); loadPending();
+  } catch (e) {
+    F("scanErr").textContent = inboxWhy(e); F("scanErr").hidden = false;
+    INBOX.files.forEach(x => { if (x.st === "загружаю…") x.st = "ошибка"; }); renderScanList();
+  }
+};
+
 document.addEventListener("visibilitychange", () => { if (!document.hidden) ghRefresh(); });
 setInterval(() => { if (GH.on && !document.hidden && !FS.dirty) ghRefresh(); }, 120000);
 (() => { const t = lsGet("gh.token"); if (t) ghLogin(t); else setTimeout(() => F("ghToken").focus(), 50); })();
