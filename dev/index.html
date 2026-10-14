@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <!-- Версия программы: менять при каждой выкладке здесь и в ?v= у core.js ниже — по ней трекер узнаёт, что вышло обновление -->
-<meta name="app-version" content="R5.3">
+<meta name="app-version" content="R5.4">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#092634">
 <meta name="mobile-web-app-capable" content="yes">
@@ -89,7 +89,8 @@ button{cursor:pointer}
 #btnExport{grid-column:1/-1}
 #btnScan[hidden] + #btnAdd{grid-column:1/-1}
 #btnEdo{grid-column:1/-1}
-#btnScan,#btnAdd,#btnEdo{border:2px solid var(--accent);color:var(--accent-text,var(--accent));font-weight:600}
+/* Второстепенная кнопка действия — единый стиль везде: жирная рамка и текст в цвете открытого ИП */
+.btn.act{border:2px solid var(--accent);color:var(--accent-text,var(--accent));font-weight:600;padding:12px 14px;font-size:1rem}
 /* Пометки в «Добавить скан»: срочно — красный, только реквизиты — синий; цвета не зависят от ИП */
 #tagUrgent{border-color:var(--bad);color:var(--bad);font-weight:600}
 #tagUrgent[aria-pressed="true"]{background:var(--bad);border-color:var(--bad);color:var(--surface)}
@@ -268,10 +269,11 @@ legend{padding:0;margin-bottom:8px}
 ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
 /* Файлы для банка после выгрузки — у каждого свои кнопки */
 .filelist{margin:0 0 6px;padding:0;list-style:none;display:grid;gap:8px}
-.filelist li{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;border:1px solid var(--line);border-radius:8px;padding:10px 12px}
-.fl-name{display:grid;gap:2px;min-width:0;flex:1 1 200px}
+.filelist li{display:grid;gap:10px;border:1px solid var(--line);border-radius:8px;padding:12px}
+.fl-name{display:grid;gap:2px;min-width:0}
 .fl-name small{color:var(--muted);font-size:.78rem;overflow-wrap:anywhere}
-.fl-acts{display:flex;gap:6px;flex-wrap:wrap}
+.fl-acts{display:grid;gap:8px}
+#btnDonePaid{width:100%;padding:12px 14px;font-size:1rem}   /* кнопки одна под другой, на всю ширину */
 .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:.9rem;z-index:40;max-width:calc(100% - 32px)}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(12px);opacity:.6}}}
 </style>
@@ -288,9 +290,9 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
     </div>
     <div class="actions">
       <button class="btn primary" id="btnExport" type="button" disabled>Выгрузить в банк</button>
-      <button class="btn" id="btnScan" type="button" hidden>Добавить скан</button>
-      <button class="btn" id="btnAdd" type="button" disabled>+ Документ</button>
-      <button class="btn" id="btnEdo" type="button" disabled>Из ЭДО</button>
+      <button class="btn act" id="btnScan" type="button" hidden>Добавить скан</button>
+      <button class="btn act" id="btnAdd" type="button" disabled>+ Документ</button>
+      <button class="btn act" id="btnEdo" type="button" disabled>Из ЭДО</button>
     </div>
   </header>
   <div class="filebar" id="filebar" hidden></div>
@@ -608,7 +610,7 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
 
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="core.js?v=R5.3"></script>
+<script src="core.js?v=R5.4"></script>
 <script>
 (() => {
 "use strict";
@@ -1305,7 +1307,7 @@ F("btnDownload").onclick = () => {
   F("expDone").innerHTML = `<h2>${files.length > 1 ? "Файлы готовы" : "Файл готов"}: ${P.orders.length} ${plural(P.orders.length, "платёжка", "платёжки", "платёжек")} на ${rub(sum(P.orders))} ₽</h2>
     <ul class="filelist">${files.map((f, i) => `<li>
       <span class="fl-name"><b>${esc(f.sup.name)}</b><small class="mono">${esc(f.name)}</small></span>
-      <span class="fl-acts"><button class="btn sm" type="button" data-dl="${i}">${phone ? "Скачать" : "Скачать ещё раз"}</button>${canShare ? `<button class="btn sm" type="button" data-share="${i}">Сохранить в Файлы</button>` : ""}</span>
+      <span class="fl-acts"><button class="btn act" type="button" data-dl="${i}">${phone ? "Скачать" : "Скачать ещё раз"}</button>${canShare ? `<button class="btn act" type="button" data-share="${i}">Сохранить в Файлы</button>` : ""}</span>
     </li>`).join("")}</ul>
     <ol class="howto">
       <li>${phone ? "Скачайте каждый файл кнопкой выше. На iPhone они попадают в «Файлы» → «Загрузки» (в Яндекс Браузере — в его «Загрузки»). «Сохранить в Файлы» — выбрать папку самому." : `${files.length > 1 ? "Файлы сохранены" : "Файл сохранён"} в папку «Загрузки». Если какого-то нет — «Скачать ещё раз».`}</li>
