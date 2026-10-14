@@ -49,7 +49,16 @@ button{cursor:pointer}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .mono{font-family:var(--f-num);font-variant-numeric:tabular-nums}
 
-.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+.top{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
+.orghead{display:grid;gap:2px;border:1px solid var(--accent);border-left:6px solid var(--accent);background:var(--accent-soft);border-radius:var(--r);padding:12px 16px;cursor:pointer;min-width:0}
+.orghead:hover{box-shadow:inset 0 0 0 1px var(--accent)}
+.orghead:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.oh-more{font-size:.82rem;font-weight:500;color:var(--accent-text,var(--accent));margin-top:4px}
+/* Кнопки: «Выгрузить в банк» на всю ширину, ниже две равные */
+.top .actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.top .actions .btn{padding:12px 14px;font-size:1rem}
+#btnExport{grid-column:1/-1}
+#btnScan[hidden] + #btnAdd{grid-column:1/-1}
 .top .sub{color:var(--muted);font-size:.9rem;margin-top:2px}
 .actions{display:flex;flex-wrap:wrap;gap:8px}
 .btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 14px;font-weight:500;line-height:1.2}
@@ -87,7 +96,7 @@ button{cursor:pointer}
 .orgtab .amt{font-family:var(--f-num);font-variant-numeric:tabular-nums;font-size:1.25rem;font-weight:500}
 .orgtab .meta{font-size:.85rem;color:var(--muted)}
 .orgtab .meta b{color:var(--bad);font-weight:600}
-.top h1{display:flex;align-items:center;gap:10px}
+.top h1{display:flex;align-items:center;gap:10px;font-size:clamp(1.25rem,4.5vw,1.6rem)}
 .top h1 i{width:14px;height:14px;border-radius:50%;background:var(--accent);flex:none}
 .payer{border-left:6px solid var(--accent);background:var(--accent-soft);border-radius:8px;padding:10px 14px;display:grid;gap:2px}
 .payer b{font-size:1.05rem}
@@ -192,16 +201,16 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
 <body>
 <div class="wrap">
   <header class="top">
-    <div>
+    <!-- Карточка открытого ИП в его цвете; нажатие — настройки (тема) и реквизиты -->
+    <div class="orghead" id="orgHead" role="button" tabindex="0" aria-label="Настройки и реквизиты">
       <h1 id="hTitle">Счета к оплате</h1>
       <p class="sub" id="sub">УПД, счета и накладные — бумажные и из Диадока</p>
+      <span class="oh-more">Настройки и реквизиты ›</span>
     </div>
     <div class="actions">
-      <select class="themesel" id="themeSel" aria-label="Тема оформления"><option value="classic">Тема: классика</option><option value="ocean">Тема: океан</option></select>
-      <button class="btn" id="btnReq" type="button" disabled>Реквизиты</button>
-      <button class="btn" id="btnExport" type="button" disabled>Выгрузить в банк</button>
+      <button class="btn primary" id="btnExport" type="button" disabled>Выгрузить в банк</button>
       <button class="btn" id="btnScan" type="button" hidden>Добавить скан</button>
-      <button class="btn primary" id="btnAdd" type="button" disabled>+ Документ</button>
+      <button class="btn" id="btnAdd" type="button" disabled>+ Документ</button>
     </div>
   </header>
   <div class="filebar" id="filebar" hidden></div>
@@ -305,8 +314,11 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
 <!-- Реквизиты -->
 <div class="overlay" id="ovReq" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="reqTitle">
-    <div class="sh-head"><h2 id="reqTitle">Реквизиты</h2><button class="x" type="button" data-close aria-label="Закрыть">×</button></div>
+    <div class="sh-head"><h2 id="reqTitle">Настройки и реквизиты</h2><button class="x" type="button" data-close aria-label="Закрыть">×</button></div>
     <div class="sh-body">
+      <div class="grid">
+        <div class="f"><label for="themeSel">Тема оформления</label><select class="themesel" id="themeSel"><option value="classic">Классика</option><option value="ocean">Океан</option></select></div>
+      </div>
       <div class="tabs" role="tablist">
         <button class="tab" role="tab" id="tabOrgs" aria-selected="true" type="button">Мои организации</button>
         <button class="tab" role="tab" id="tabSups" aria-selected="false" type="button">Поставщики</button>
@@ -447,7 +459,7 @@ function normalize(d){
   return d;
 }
 function useData(d, name){ S.data = normalize(d); FS.name = name || "tracker.json"; S.org = lsGet("org") || ""; $("#openCard").hidden = true; $("#main").hidden = false;
-  ["btnReq","btnExport","btnAdd"].forEach(id => F(id).disabled = false); render(); renderFileBar(); }
+  ["btnExport","btnAdd"].forEach(id => F(id).disabled = false); render(); renderFileBar(); }
 async function loadHandle(h){
   if ((await h.queryPermission({ mode: "readwrite" })) !== "granted" && (await h.requestPermission({ mode: "readwrite" })) !== "granted") { toast("Без разрешения на запись файл не открыть"); return; }
   const f = await h.getFile();
@@ -699,11 +711,16 @@ const ORG_COLORS = {
     { light: ["#2A3BA0", "#E3E6F7", "#FFFFFF", "#2A3BA0"], dark: ["#9AA6FF", "#222949", "#0F131A", "#9AA6FF"] },   // синий
     { light: ["#0E6B57", "#DCF1EA", "#FFFFFF", "#0E6B57"], dark: ["#5CCFB0", "#123A30", "#0F131A", "#5CCFB0"] },   // зелёный
     { light: ["#9A4A12", "#F7E7DA", "#FFFFFF", "#9A4A12"], dark: ["#F0A27A", "#3D2216", "#0F131A", "#F0A27A"] },
-    { light: ["#7A2E8E", "#F1E3F5", "#FFFFFF", "#7A2E8E"], dark: ["#D7A0E6", "#36203D", "#0F131A", "#D7A0E6"] }
+    { light: ["#7A2E8E", "#F1E3F5", "#FFFFFF", "#7A2E8E"], dark: ["#D7A0E6", "#36203D", "#0F131A", "#D7A0E6"] },
+    { light: ["#1F6F8B", "#DDEEF4", "#FFFFFF", "#1F6F8B"], dark: ["#6CC0DE", "#163845", "#0F131A", "#6CC0DE"] }    // бирюзовый
   ],
+  // Порядок = порядок организаций: 1-я Blue, 2-я Orange, дальше запас для новых ИП/ООО
   ocean: [
     { light: ["#004E72", "#DCEBF2", "#FFFFFF", "#004E72"], dark: ["#5FB3DA", "#123F55", "#092634", "#7CC3E4"] },   // Blue
-    { light: ["#FF6E42", "#FFE6DD", "#092634", "#B9431F"], dark: ["#FF6E42", "#4A2A22", "#092634", "#FF8D69"] }    // Orange
+    { light: ["#FF6E42", "#FFE6DD", "#092634", "#B9431F"], dark: ["#FF6E42", "#4A2A22", "#092634", "#FF8D69"] },   // Orange
+    { light: ["#1F7A7A", "#DDEFEF", "#FFFFFF", "#1F7A7A"], dark: ["#5CC4C4", "#14403F", "#092634", "#7AD3D3"] },   // Teal — морская волна
+    { light: ["#E3A72F", "#FBEFD4", "#092634", "#8A5F00"], dark: ["#E9B44C", "#4A3A17", "#092634", "#F0C46E"] },   // Gold — песок
+    { light: ["#4B5A9B", "#E4E7F4", "#FFFFFF", "#4B5A9B"], dark: ["#9DA9E0", "#262E52", "#092634", "#B3BCE8"] }    // Slate — сумеречный синий
   ]
 };
 const darkMQ = window.matchMedia("(prefers-color-scheme: dark)");
@@ -936,7 +953,10 @@ F("btnDel").addEventListener("click", () => {
 F("o-days").innerHTML = [1,2,3,4,5,6].map(d => `<label><input type="checkbox" id="o-day-${d}" value="${d}">${WD[d]}</label>`).join("");
 function showTab(t){ F("tabOrgs").setAttribute("aria-selected", t === "orgs"); F("tabSups").setAttribute("aria-selected", t === "sups"); F("paneOrgs").hidden = t !== "orgs"; F("paneSups").hidden = t !== "sups"; }
 F("tabOrgs").onclick = () => showTab("orgs"); F("tabSups").onclick = () => showTab("sups");
-F("btnReq").onclick = () => { renderReq(); showTab("orgs"); fillOrgForm(orgs()[0] || null); F("supForm").hidden = true; openSheet("ovReq"); };
+// Настройки и реквизиты — по нажатию на карточку ИП в шапке; открываем реквизиты именно этого ИП
+function openSettings(){ if (!S.data) return; renderReq(); showTab("orgs"); fillOrgForm(orgById(S.org) || orgs()[0] || null); F("supForm").hidden = true; openSheet("ovReq"); }
+F("orgHead").addEventListener("click", openSettings);
+F("orgHead").addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " "){ e.preventDefault(); openSettings(); } });
 function renderReq(){
   F("orgList").innerHTML = orgs().length ? orgs().map(o => { const p = C.reqProblems(o);
     return `<div class="recitem"><div><b>${esc(o.name)}</b><small>ИНН ${esc(o.inn)} · р/с ${esc(o.account || "—")} · ${esc(o.bank || "")}</small>${p.length ? `<small style="color:var(--bad)">${esc(p.join("; "))}</small>` : ""}</div><button class="btn sm" type="button" data-org="${esc(o.id)}">Изменить</button></div>`; }).join("")
