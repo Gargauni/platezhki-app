@@ -1,10 +1,10 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ru">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <!-- Версия программы: менять при каждой выкладке здесь и в ?v= у core.js ниже — по ней трекер узнаёт, что вышло обновление -->
-<meta name="app-version" content="R4.8">
+<meta name="app-version" content="R4.9">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#092634">
 <meta name="mobile-web-app-capable" content="yes">
@@ -416,52 +416,69 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
         <button class="tab" role="tab" id="tabSups" aria-selected="false" type="button">Поставщики</button>
       </div>
       <div id="paneOrgs" class="sh-body" style="padding:0">
+        <div class="actions"><button class="btn sm" type="button" id="btnOrgNew">+ Новая организация</button></div>
         <div class="reclist" id="orgList"></div>
-        <form id="orgForm" novalidate>
-          <fieldset>
-            <legend><h3 id="orgFormTitle">Новая организация</h3></legend>
-            <div class="grid">
-              <div class="f wide"><label for="o-name">Название как в платёжке</label><input id="o-name" placeholder="ИП Иванов Иван Иванович" autocomplete="off"></div>
-              <div class="f"><label for="o-inn">ИНН</label><input id="o-inn" class="mono" inputmode="numeric" autocomplete="off"></div>
-              <div class="f"><label for="o-kpp">КПП (у ИП пусто)</label><input id="o-kpp" class="mono" inputmode="numeric" autocomplete="off"></div>
-              <div class="f"><label for="o-acc">Расчётный счёт</label><input id="o-acc" class="mono" inputmode="numeric" autocomplete="off"></div>
-              <div class="f"><label for="o-bik">БИК</label><input id="o-bik" class="mono" inputmode="numeric" autocomplete="off"></div>
-              <div class="f"><label for="o-corr">Корр. счёт</label><input id="o-corr" class="mono" inputmode="numeric" autocomplete="off"></div>
-              <div class="f"><label for="o-bank">Банк</label><input id="o-bank" autocomplete="off"></div>
-              <div class="f"><label for="o-city">Город банка</label><input id="o-city" placeholder="г. Москва" autocomplete="off"></div>
-              <div class="f"><label for="o-next">Следующий № платёжки</label><input id="o-next" class="mono" inputmode="numeric" autocomplete="off"></div>
-              <div class="f wide"><label>Платёжные дни</label><div class="days" id="o-days"></div></div>
-            </div>
-            <div id="orgErrs"></div>
-            <div class="actions"><button class="btn primary sm" type="button" id="btnOrgSave">Сохранить организацию</button><button class="btn sm quiet" type="button" id="btnOrgNew">Новая</button><span class="grow"></span><button class="btn sm danger" type="button" id="btnOrgDel" hidden>Удалить организацию</button></div>
-          </fieldset>
-        </form>
       </div>
       <div id="paneSups" class="sh-body" style="padding:0" hidden>
         <div class="reclist" id="supRecList"></div>
-        <form id="supForm" novalidate hidden>
-          <fieldset>
-            <legend><h3 id="supFormTitle">Поставщик</h3></legend>
-            <div class="grid">
-              <div class="f wide"><label for="s-name">Название как в платёжке</label><input id="s-name" autocomplete="off"></div>
-              <div class="f"><label for="s-inn">ИНН</label><input id="s-inn" class="mono" readonly></div>
-              <div class="f"><label for="s-kpp">КПП</label><input id="s-kpp" class="mono" inputmode="numeric" autocomplete="off"></div>
-              <div class="f"><label for="s-acc">Расчётный счёт</label><input id="s-acc" class="mono" inputmode="numeric" autocomplete="off"></div>
-              <div class="f"><label for="s-bik">БИК</label><input id="s-bik" class="mono" inputmode="numeric" autocomplete="off"></div>
-              <div class="f"><label for="s-corr">Корр. счёт</label><input id="s-corr" class="mono" inputmode="numeric" autocomplete="off"></div>
-              <div class="f"><label for="s-bank">Банк</label><input id="s-bank" autocomplete="off"></div>
-              <div class="f"><label for="s-city">Город банка</label><input id="s-city" autocomplete="off"></div>
-              <div class="f"><label for="s-subject">Оплата за…</label><input id="s-subject" autocomplete="off"></div>
-              <div class="f"><label for="s-word">Документ в назначении</label><input id="s-word" autocomplete="off"></div>
-              <div class="f"><label for="s-defer">Отсрочка, дней</label><input id="s-defer" class="mono" inputmode="numeric" placeholder="нет" autocomplete="off"><span class="hint">Срок = дата документа + отсрочка, если в документе срока нет</span></div>
-              <div class="f"><label for="s-contract">Договор в назначении</label><input id="s-contract" autocomplete="off" placeholder="№ 3831/180918-КЛ от 18.09.2018"></div>
-            </div>
-            <div id="supErrs"></div>
-            <div id="supHist"></div>
-            <div class="actions"><button class="btn primary sm" type="button" id="btnSupSave">Сохранить поставщика</button></div>
-          </fieldset>
-        </form>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Карточка открывается отдельным окном поверх списка в «Реквизитах» -->
+<div class="overlay" id="ovOrgEdit" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="orgFormTitle">
+    <div class="sh-head"><h2 id="orgFormTitle">Организация</h2><button class="x" type="button" data-close aria-label="Закрыть">×</button></div>
+    <div class="sh-body">
+      <form id="orgForm" novalidate>
+        <fieldset>
+          <div class="grid">
+            <div class="f wide"><label for="o-name">Название как в платёжке</label><input id="o-name" placeholder="ИП Иванов Иван Иванович" autocomplete="off"></div>
+            <div class="f"><label for="o-inn">ИНН</label><input id="o-inn" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f"><label for="o-kpp">КПП (у ИП пусто)</label><input id="o-kpp" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f"><label for="o-acc">Расчётный счёт</label><input id="o-acc" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f"><label for="o-bik">БИК</label><input id="o-bik" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f"><label for="o-corr">Корр. счёт</label><input id="o-corr" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f"><label for="o-bank">Банк</label><input id="o-bank" autocomplete="off"></div>
+            <div class="f"><label for="o-city">Город банка</label><input id="o-city" placeholder="г. Москва" autocomplete="off"></div>
+            <div class="f"><label for="o-next">Следующий № платёжки</label><input id="o-next" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f wide"><label>Платёжные дни</label><div class="days" id="o-days"></div></div>
+          </div>
+          <div id="orgErrs"></div>
+          <div class="actions"><button class="btn primary sm" type="button" id="btnOrgSave">Сохранить организацию</button><span class="grow"></span><button class="btn sm danger" type="button" id="btnOrgDel" hidden>Удалить организацию</button></div>
+        </fieldset>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Карточка открывается отдельным окном поверх списка в «Реквизитах» -->
+<div class="overlay" id="ovSupEdit" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="supFormTitle">
+    <div class="sh-head"><h2 id="supFormTitle">Поставщик</h2><button class="x" type="button" data-close aria-label="Закрыть">×</button></div>
+    <div class="sh-body">
+      <form id="supForm" novalidate>
+        <fieldset>
+          <div class="grid">
+            <div class="f wide"><label for="s-name">Название как в платёжке</label><input id="s-name" autocomplete="off"></div>
+            <div class="f"><label for="s-inn">ИНН</label><input id="s-inn" class="mono" readonly></div>
+            <div class="f"><label for="s-kpp">КПП</label><input id="s-kpp" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f"><label for="s-acc">Расчётный счёт</label><input id="s-acc" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f"><label for="s-bik">БИК</label><input id="s-bik" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f"><label for="s-corr">Корр. счёт</label><input id="s-corr" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f"><label for="s-bank">Банк</label><input id="s-bank" autocomplete="off"></div>
+            <div class="f"><label for="s-city">Город банка</label><input id="s-city" autocomplete="off"></div>
+            <div class="f"><label for="s-subject">Оплата за…</label><input id="s-subject" autocomplete="off"></div>
+            <div class="f"><label for="s-word">Документ в назначении</label><input id="s-word" autocomplete="off"></div>
+            <div class="f"><label for="s-defer">Отсрочка, дней</label><input id="s-defer" class="mono" inputmode="numeric" placeholder="нет" autocomplete="off"><span class="hint">Срок = дата документа + отсрочка, если в документе срока нет</span></div>
+            <div class="f"><label for="s-contract">Договор в назначении</label><input id="s-contract" autocomplete="off" placeholder="№ 3831/180918-КЛ от 18.09.2018"></div>
+          </div>
+          <div id="supErrs"></div>
+          <div id="supHist"></div>
+          <div class="actions"><button class="btn primary sm" type="button" id="btnSupSave">Сохранить поставщика</button></div>
+        </fieldset>
+      </form>
     </div>
   </div>
 </div>
@@ -527,7 +544,7 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
 
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="core.js?v=R4.8"></script>
+<script src="core.js?v=R4.9"></script>
 <script>
 (() => {
 "use strict";
@@ -1094,7 +1111,7 @@ function showTab(t){ F("tabOrgs").setAttribute("aria-selected", t === "orgs"); F
 F("tabOrgs").onclick = () => showTab("orgs"); F("tabSups").onclick = () => showTab("sups");
 // Карточка ИП в шапке → меню «Настройки» → пункт открывает своё окно поверх (закрыли — вернулись в меню)
 function openSettings(){ if (!S.data) return; openSheet("ovSet"); }
-function openReq(){ renderReq(); showTab("orgs"); fillOrgForm(orgById(S.org) || orgs()[0] || null); F("supForm").hidden = true; openSheet("ovReq"); }
+function openReq(){ renderReq(); showTab("orgs"); openSheet("ovReq"); }
 F("miReq").onclick = openReq;
 F("miTheme").onclick = () => { renderThemeList(); openSheet("ovTheme"); };
 F("orgHead").addEventListener("click", openSettings);
@@ -1107,10 +1124,11 @@ function renderReq(){
     return `<div class="recitem"><div><b>${esc(s.name || "—")}</b><small>ИНН ${esc(s.inn)} · р/с ${esc(s.account || "—")} · ${esc(s.bank || "")}</small>${p.length ? `<small style="color:var(--bad)">${esc(p.join("; "))}</small>` : ""}</div><button class="btn sm" type="button" data-sup="${esc(s.inn)}">Изменить</button></div>`; }).join("")
     : `<p style="color:var(--muted)">Поставщики появятся сами с первым документом.</p>`;
 }
-F("orgList").addEventListener("click", e => { const b = e.target.closest("[data-org]"); if (b) fillOrgForm(orgById(b.dataset.org)); });
-F("btnOrgNew").onclick = () => fillOrgForm(null);
+// «Изменить» и «+ Новая организация» — карточка отдельным окном поверх списка
+F("orgList").addEventListener("click", e => { const b = e.target.closest("[data-org]"); if (b){ fillOrgForm(orgById(b.dataset.org)); openSheet("ovOrgEdit"); } });
+F("btnOrgNew").onclick = () => { fillOrgForm(null); openSheet("ovOrgEdit"); };
 function fillOrgForm(o){
-  S.orgEdit = o || null; F("orgFormTitle").textContent = o ? "Изменить: " + o.name : "Новая организация";
+  S.orgEdit = o || null; F("orgFormTitle").textContent = o ? o.name : "Новая организация";
   const v = o || {};
   F("o-name").value = v.name || ""; F("o-inn").value = v.inn || ""; F("o-kpp").value = v.kpp || ""; F("o-acc").value = v.account || "";
   F("o-bik").value = v.bik || ""; F("o-corr").value = v.corr || ""; F("o-bank").value = v.bank || ""; F("o-city").value = v.city || ""; F("o-next").value = v.nextNo || "";
@@ -1132,7 +1150,7 @@ F("btnDelOrgGo").onclick = () => {
   S.data.docs = docs().filter(d => d.orgId !== o.id);
   S.data.orgs = orgs().filter(x => x.id !== o.id);
   if (S.org === o.id){ S.org = (orgs()[0] || {}).id || ""; lsSet("org", S.org); }
-  closeSheet(F("ovDelOrg")); fillOrgForm(orgs()[0] || null);
+  closeSheet(F("ovDelOrg")); closeSheet(F("ovOrgEdit"));
   persist(); renderReq(); render(); toast("Организация удалена: " + o.name);
 };
 F("btnOrgSave").onclick = () => {
@@ -1144,14 +1162,15 @@ F("btnOrgSave").onclick = () => {
   const p = C.reqProblems(o); F("orgErrs").innerHTML = p.length ? `<div class="banner">Сохранено, но проверьте: ${esc(p.join("; "))}</div>` : "";
   if (S.orgEdit) Object.assign(S.orgEdit, o); else { const n = { id: "org-" + o.inn, ...o }; orgs().push(n); S.orgEdit = n; }
   persist(); renderReq(); render(); toast("Организация сохранена");
+  if (!p.length) closeSheet(F("ovOrgEdit"));   // есть замечания — окно остаётся, чтобы их было видно
 };
 F("supRecList").addEventListener("click", e => { const b = e.target.closest("[data-sup]"); if (!b) return; const s = supOf(b.dataset.sup); if (!s) return;
-  S.supEdit = s; F("supForm").hidden = false; F("supFormTitle").textContent = s.name || "Поставщик";
+  S.supEdit = s; F("supFormTitle").textContent = s.name || "Поставщик";
   F("s-name").value = s.name || ""; F("s-inn").value = s.inn; F("s-kpp").value = s.kpp || ""; F("s-acc").value = s.account || ""; F("s-bik").value = s.bik || "";
   F("s-corr").value = s.corr || ""; F("s-bank").value = s.bank || ""; F("s-city").value = s.city || ""; F("s-subject").value = s.subject || ""; F("s-word").value = s.docWord ?? "Счет"; F("s-defer").value = s.deferDays || ""; F("s-contract").value = s.contract || "";
   F("supErrs").innerHTML = ""; const h = s.history || [];
   F("supHist").innerHTML = h.length ? `<p style="color:var(--muted);font-size:.82rem">Старые реквизиты: ${h.map(x => esc(x.account) + " (" + esc(x.bank || "") + ", до " + ru(x.until) + ")").join("; ")}</p>` : "";
-  F("supForm").scrollIntoView({ block: "nearest" }); });
+  openSheet("ovSupEdit"); });
 F("btnSupSave").onclick = () => {
   const s = S.supEdit; if (!s) return;
   const n = { name: F("s-name").value.trim(), kpp: digits(F("s-kpp").value), account: digits(F("s-acc").value), bik: digits(F("s-bik").value),
@@ -1160,6 +1179,7 @@ F("btnSupSave").onclick = () => {
   Object.assign(s, n);
   const p = C.reqProblems(s); F("supErrs").innerHTML = p.length ? `<div class="banner">Сохранено, но проверьте: ${esc(p.join("; "))}</div>` : "";
   persist(); renderReq(); render(); toast("Поставщик сохранён");
+  if (!p.length) closeSheet(F("ovSupEdit"));
 };
 
 /* ---------- выгрузка ---------- */
