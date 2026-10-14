@@ -2,7 +2,8 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#092634">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -40,7 +41,13 @@
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 var(--f-ui)}
-.wrap{max-width:1040px;margin:0 auto;padding-inline:16px;padding-block:20px 64px;display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+/* Как приложение: без масштабирования и сдвига вбок, без «резинки» и подсветки нажатий */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;touch-action:pan-x pan-y;overflow-x:hidden;overscroll-behavior:none}
+body{overflow-x:hidden;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
+button,.chip,.orghead,.mi,.th,.drop{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+/* iPhone увеличивает страницу при фокусе на поле с шрифтом меньше 16px — на сенсорных экранах ставим 16px */
+@media (pointer:coarse){ input,select,textarea{font-size:16px!important} }
+.wrap{max-width:1040px;margin:0 auto;padding-inline:max(16px,env(safe-area-inset-left));padding-block:20px calc(64px + env(safe-area-inset-bottom));display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
 h1,h2,h3{margin:0;text-wrap:balance}
 h1{font-size:1.6rem;font-weight:700;letter-spacing:-.01em}
 h2{font-size:1.15rem;font-weight:600}
@@ -519,6 +526,8 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const F = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+// iPhone не всегда слушает user-scalable=no — блокируем жест «щипок» (масштаб двумя пальцами)
+["gesturestart", "gesturechange", "gestureend"].forEach(t => document.addEventListener(t, e => e.preventDefault(), { passive: false }));
 
 const S = { data: null, st: "open", org: "", q: "", edit: null, vatTouched: false, payTouched: false, dupOk: false, orgEdit: null, supEdit: null, exp: null };
 const FS = { handle: null, lastMod: 0, dirty: false, name: "", savedAt: "", chain: Promise.resolve(), canFS: "showOpenFilePicker" in window };
