@@ -81,12 +81,21 @@
   function nextPay(days, from) { from = from || today(); for (let i = 0; i < 8; i++) { const s = addDays(from, i); if (days.includes(D(s).getDay())) return s; } return from; }
   // Оплаченные предоплаты, к которым ещё не пришёл закрывающий УПД
   const openPrepays = (data, inn) => data.docs.filter(d => d.prepay && d.status === "paid" && !d.closedBy && (!inn || digits(d.supplierInn) === digits(inn)));
+  // Срок оплаты документа: из самого документа, а если его нет — дата документа + отсрочка поставщика (deferDays)
+  function dueOf(data, d) {
+    if (d.due) return d.due;
+    const days = Number((supByInn(data, d.supplierInn) || {}).deferDays) || 0;
+    return days > 0 && validISO(d.date) ? addDays(d.date, days) : "";
+  }
+  // Откуда срок: "doc" — указан в документе, "defer" — посчитан по отсрочке, "" — срока нет
+  const dueSource = (data, d) => d.due ? "doc" : dueOf(data, d) ? "defer" : "";
   function stOf(data, d, t) {
     if (d.status === "paid") return "paid";
     if (d.status === "bank") return "bank";
     t = t || today();
-    if (d.due && d.due < t) return "overdue";
-    if (d.due && d.due < nextPay(payDays(data, d.orgId), t)) return "soon";
+    const due = dueOf(data, d);
+    if (due && due < t) return "overdue";
+    if (due && due < nextPay(payDays(data, d.orgId), t)) return "soon";
     return "unpaid";
   }
 
@@ -289,7 +298,7 @@
     iso, today, D, ru, ruShort, human, diff, addDays, validISO,
     digits, kop, rub, rubIn, dot, vatOf, plural, sum, groupBy,
     innOk, accOk, corrOk, reqProblems,
-    emptyData, orgById, supByInn, payDays, nextPay, stOf, openPrepays,
+    emptyData, orgById, supByInn, payDays, nextPay, stOf, dueOf, dueSource, openPrepays,
     autoPayNum, payNum, purposeText, pack, exportPlan, markExported,
     cp1251, build1C, shortName, orgShort, fileName, exportFiles, checkData, docId, merge3
   };

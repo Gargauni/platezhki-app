@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <!-- Версия программы: менять при каждой выкладке здесь и в ?v= у core.js ниже — по ней трекер узнаёт, что вышло обновление -->
-<meta name="app-version" content="R4.7">
+<meta name="app-version" content="R4.8">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#092634">
 <meta name="mobile-web-app-capable" content="yes">
@@ -343,6 +343,7 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
           <div class="f"><label for="r-city">Город банка</label><input id="r-city" placeholder="г. Москва" autocomplete="off"></div>
           <div class="f"><label for="r-subject">Оплата за…</label><input id="r-subject" placeholder="запчасти" autocomplete="off"></div>
           <div class="f"><label for="r-word">Документ в назначении</label><input id="r-word" placeholder="Счет" autocomplete="off"></div>
+          <div class="f"><label for="r-defer">Отсрочка, дней</label><input id="r-defer" class="mono" inputmode="numeric" placeholder="нет" autocomplete="off"><span class="hint">По договору. Срок в самом документе важнее</span></div>
         </div>
         <div id="reqErrs"></div>
       </fieldset>
@@ -452,6 +453,7 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
               <div class="f"><label for="s-city">Город банка</label><input id="s-city" autocomplete="off"></div>
               <div class="f"><label for="s-subject">Оплата за…</label><input id="s-subject" autocomplete="off"></div>
               <div class="f"><label for="s-word">Документ в назначении</label><input id="s-word" autocomplete="off"></div>
+              <div class="f"><label for="s-defer">Отсрочка, дней</label><input id="s-defer" class="mono" inputmode="numeric" placeholder="нет" autocomplete="off"><span class="hint">Срок = дата документа + отсрочка, если в документе срока нет</span></div>
               <div class="f"><label for="s-contract">Договор в назначении</label><input id="s-contract" autocomplete="off" placeholder="№ 3831/180918-КЛ от 18.09.2018"></div>
             </div>
             <div id="supErrs"></div>
@@ -525,7 +527,7 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
 
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="core.js?v=R4.7"></script>
+<script src="core.js?v=R4.8"></script>
 <script>
 (() => {
 "use strict";
@@ -810,6 +812,7 @@ const orgs = () => S.data.orgs, sups = () => S.data.suppliers, docs = () => S.da
 const orgById = id => C.orgById(S.data, id);
 const supOf = inn => C.supByInn(S.data, inn);
 const stOf = d => C.stOf(S.data, d);
+const dueOf = d => C.dueOf(S.data, d);
 const payDays = id => C.payDays(S.data, id);
 let toastT;
 function toast(msg){ const t = F("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 2600); }
@@ -915,8 +918,8 @@ function render(){
   const rank = { overdue: 0, soon: 1, unpaid: 2, bank: 3, paid: 4 };
   const g = groupBy(rows, d => (d.orgId || "") + "|" + digits(d.supplierInn) + "|" + (stOf(d) === "paid" ? "p" : stOf(d) === "bank" ? "b" : "o"));
   const list = [...g.values()].map(items => {
-    items.sort((a, b) => rank[stOf(a)] - rank[stOf(b)] || (a.due || "9").localeCompare(b.due || "9") || (a.date || "").localeCompare(b.date || ""));
-    return { items, top: Math.min(...items.map(d => rank[stOf(d)])), due: items.map(d => d.due || "9").sort()[0], paidAt: items.map(d => d.paidAt || "").sort().pop() };
+    items.sort((a, b) => rank[stOf(a)] - rank[stOf(b)] || (dueOf(a) || "9").localeCompare(dueOf(b) || "9") || (a.date || "").localeCompare(b.date || ""));
+    return { items, top: Math.min(...items.map(d => rank[stOf(d)])), due: items.map(d => dueOf(d) || "9").sort()[0], paidAt: items.map(d => d.paidAt || "").sort().pop() };
   }).sort((a, b) => a.top - b.top || (a.top === 4 ? (b.paidAt || "").localeCompare(a.paidAt || "") : a.due.localeCompare(b.due)));
   F("list").innerHTML = list.map(G => groupHTML(G.items)).join("");
 }
@@ -944,7 +947,7 @@ function groupHTML(items){
   const name = (sup && sup.name) || d0.supplierName || "Поставщик не указан";
   return `<div class="group" data-ids="${esc(items.map(d => d.id).join(","))}">
     <div class="g-head">
-      <div class="g-name">${esc(name)}<small class="mono">ИНН ${esc(digits(d0.supplierInn) || "—")}</small></div>
+      <div class="g-name">${esc(name)}<small class="mono">ИНН ${esc(digits(d0.supplierInn) || "—")}${sup && sup.deferDays ? ` · отсрочка ${sup.deferDays} дн.` : ""}</small></div>
       <span class="g-sum">${rub(sum(items))} ₽</span>
       ${isOpen ? `<div class="g-acts"><button class="btn sm" type="button" data-g="purpose">Назначение</button><button class="btn sm" type="button" data-g="amount">Сумма</button><button class="btn sm" type="button" data-g="paid">Оплачено</button></div>` : ""}
     </div>
@@ -961,9 +964,11 @@ function rowHTML(d){
     : s === "overdue" ? `<span class="pill p-overdue">Просрочен</span>`
     : s === "soon" ? `<span class="pill p-soon" title="Срок оплаты раньше ближайшего платёжного дня">Срочно</span>`
     : `<span class="pill p-unpaid">К оплате</span>`;
+  // Срок — из документа или посчитанный по отсрочке поставщика (тогда с пометкой «по отсрочке»)
   let due = "без срока";
-  if (d.due){ const n = diff(today(), d.due);
-    due = s === "paid" || s === "bank" ? "срок " + ru(d.due) : n < 0 ? "срок был " + ru(d.due) : n === 0 ? "срок сегодня" : "до " + human(d.due); }
+  const dd = dueOf(d), byDefer = C.dueSource(S.data, d) === "defer";
+  if (dd){ const n = diff(today(), dd);
+    due = (s === "paid" || s === "bank" ? "срок " + ru(dd) : n < 0 ? "срок был " + ru(dd) : n === 0 ? "срок сегодня" : "до " + human(dd)) + (byDefer ? " · по отсрочке" : ""); }
   const vat = d.vatRate && d.vatRate !== "none" ? "НДС " + d.vatRate + "% " + rub(d.vat || 0) : "без НДС";
   const acts = s === "paid" ? `<button class="btn sm quiet" type="button" data-a="unpay">Вернуть</button>`
     : s === "bank" ? `<button class="btn sm" type="button" data-a="paid">Оплачен</button><button class="btn sm quiet" type="button" data-a="unpay">Не прошёл</button>`
@@ -1025,12 +1030,12 @@ function openDoc(d){
 }
 function fillReq(s){
   F("r-kpp").value = s.kpp || ""; F("r-acc").value = s.account || ""; F("r-bik").value = s.bik || ""; F("r-corr").value = s.corr || "";
-  F("r-bank").value = s.bank || ""; F("r-city").value = s.city || ""; F("r-subject").value = s.subject ?? ""; F("r-word").value = s.docWord ?? "Счет";
+  F("r-bank").value = s.bank || ""; F("r-city").value = s.city || ""; F("r-subject").value = s.subject ?? ""; F("r-word").value = s.docWord ?? "Счет"; F("r-defer").value = s.deferDays || "";
   if (s.name && !F("d-sname").value) F("d-sname").value = s.name;
 }
 const readReq = () => ({ name: F("d-sname").value.trim(), inn: digits(F("d-sinn").value), kpp: digits(F("r-kpp").value), account: digits(F("r-acc").value),
   bik: digits(F("r-bik").value), corr: digits(F("r-corr").value), bank: F("r-bank").value.trim(), city: F("r-city").value.trim(),
-  subject: F("r-subject").value.trim(), docWord: F("r-word").value.trim() });
+  subject: F("r-subject").value.trim(), docWord: F("r-word").value.trim(), deferDays: Number(digits(F("r-defer").value)) || 0 });
 const readDoc = () => ({ orgId: F("d-org").value, type: F("d-type").value, source: F("d-source").value,
   number: F("d-number").value.trim(), numberPay: S.payTouched ? F("d-paynum").value.trim() : "",
   date: F("d-date").value, due: F("d-due").value, amount: kop(F("d-amount").value), vatRate: F("d-vatrate").value, vat: kop(F("d-vat").value),
@@ -1143,14 +1148,14 @@ F("btnOrgSave").onclick = () => {
 F("supRecList").addEventListener("click", e => { const b = e.target.closest("[data-sup]"); if (!b) return; const s = supOf(b.dataset.sup); if (!s) return;
   S.supEdit = s; F("supForm").hidden = false; F("supFormTitle").textContent = s.name || "Поставщик";
   F("s-name").value = s.name || ""; F("s-inn").value = s.inn; F("s-kpp").value = s.kpp || ""; F("s-acc").value = s.account || ""; F("s-bik").value = s.bik || "";
-  F("s-corr").value = s.corr || ""; F("s-bank").value = s.bank || ""; F("s-city").value = s.city || ""; F("s-subject").value = s.subject || ""; F("s-word").value = s.docWord ?? "Счет"; F("s-contract").value = s.contract || "";
+  F("s-corr").value = s.corr || ""; F("s-bank").value = s.bank || ""; F("s-city").value = s.city || ""; F("s-subject").value = s.subject || ""; F("s-word").value = s.docWord ?? "Счет"; F("s-defer").value = s.deferDays || ""; F("s-contract").value = s.contract || "";
   F("supErrs").innerHTML = ""; const h = s.history || [];
   F("supHist").innerHTML = h.length ? `<p style="color:var(--muted);font-size:.82rem">Старые реквизиты: ${h.map(x => esc(x.account) + " (" + esc(x.bank || "") + ", до " + ru(x.until) + ")").join("; ")}</p>` : "";
   F("supForm").scrollIntoView({ block: "nearest" }); });
 F("btnSupSave").onclick = () => {
   const s = S.supEdit; if (!s) return;
   const n = { name: F("s-name").value.trim(), kpp: digits(F("s-kpp").value), account: digits(F("s-acc").value), bik: digits(F("s-bik").value),
-    corr: digits(F("s-corr").value), bank: F("s-bank").value.trim(), city: F("s-city").value.trim(), subject: F("s-subject").value.trim(), docWord: F("s-word").value.trim(), contract: F("s-contract").value.trim(), updatedAt: today() };
+    corr: digits(F("s-corr").value), bank: F("s-bank").value.trim(), city: F("s-city").value.trim(), subject: F("s-subject").value.trim(), docWord: F("s-word").value.trim(), deferDays: Number(digits(F("s-defer").value)) || 0, contract: F("s-contract").value.trim(), updatedAt: today() };
   if (s.account && n.account !== s.account) n.history = [...(s.history || []), { account: s.account, bik: s.bik || "", bank: s.bank || "", until: today() }].slice(-10);
   Object.assign(s, n);
   const p = C.reqProblems(s); F("supErrs").innerHTML = p.length ? `<div class="banner">Сохранено, но проверьте: ${esc(p.join("; "))}</div>` : "";
