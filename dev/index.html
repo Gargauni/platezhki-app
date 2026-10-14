@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <!-- Версия программы: менять при каждой выкладке здесь и в ?v= у core.js ниже — по ней трекер узнаёт, что вышло обновление -->
-<meta name="app-version" content="R4.6">
+<meta name="app-version" content="R4.7">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#092634">
 <meta name="mobile-web-app-capable" content="yes">
@@ -246,14 +246,6 @@ legend{padding:0;margin-bottom:8px}
 ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
 .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:.9rem;z-index:40;max-width:calc(100% - 32px)}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(12px);opacity:.6}}}
-/* Телефон: «ручка» внизу окна — взять и смахнуть окно вверх (закрыть). Шапка окна — тоже место для жеста */
-.grip{display:none}
-@media (max-width:819px){
-  .sh-head{touch-action:none}
-  .grip{display:grid;place-items:center;flex-basis:100%;order:99;height:26px;margin:-6px 0 -10px;touch-action:none;cursor:grab}
-  .grip::before{content:"";width:44px;height:5px;border-radius:3px;background:var(--muted);opacity:.45}
-  .sheet > .grip{margin:0 0 4px}
-}
 </style>
 </head>
 <body>
@@ -533,7 +525,7 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
 
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="core.js?v=R4.6"></script>
+<script src="core.js?v=R4.7"></script>
 <script>
 (() => {
 "use strict";
@@ -828,55 +820,10 @@ async function copy(text, label){
 }
 // Каждое открытое окно — поверх предыдущих (меню → раздел → подтверждение)
 let sheetZ = 20;
-const openSheets = () => $$(".overlay").filter(o => !o.hidden).sort((a, b) => (+a.style.zIndex || 0) - (+b.style.zIndex || 0));
-// Всё под верхним окном неактивно: страница и нижние окна не реагируют на нажатия и не прокручиваются
-function syncLayers(){
-  const open = openSheets(), top = open[open.length - 1];
-  $(".wrap").inert = open.length > 0;
-  open.forEach(o => { o.inert = o !== top; });
-  const b = document.body;
-  if (open.length && !b.dataset.lockY){            // iPhone прокручивает страницу под окном даже с overflow:hidden — фиксируем её
-    b.dataset.lockY = String(window.scrollY);
-    Object.assign(b.style, { position: "fixed", top: -window.scrollY + "px", left: "0", right: "0", overflow: "hidden" });
-  } else if (!open.length && b.dataset.lockY){
-    const y = Number(b.dataset.lockY); delete b.dataset.lockY;
-    Object.assign(b.style, { position: "", top: "", left: "", right: "", overflow: "" });
-    window.scrollTo(0, y);
-  }
-}
-function openSheet(id){ const el = F(id); el.style.zIndex = ++sheetZ; el.hidden = false; syncLayers(); }
-function closeSheet(el){ el.hidden = true; el.inert = false; syncLayers(); }
-// Нажатие на затемнённый фон окно НЕ закрывает (чтобы не потерять выбранное и набранное) — только «×» и «Закрыть»
-$$(".overlay").forEach(ov => ov.addEventListener("click", e => { if (e.target.closest("[data-close]")) closeSheet(ov); }));
-document.addEventListener("keydown", e => { if (e.key === "Escape"){ const o = openSheets().pop(); if (o) closeSheet(o); } });
-// Телефон: взять окно за «ручку» внизу (или за шапку) и смахнуть вверх — «скинуть» (закрыть); немного потянули и отпустили — вернётся
-$$(".overlay").forEach(ov => {
-  const sh = ov.querySelector(".sheet"), head = ov.querySelector(".sh-head");
-  if (!sh || !head) return;
-  // Ручка — в самом низу окна: в закреплённой панели кнопок, а если её нет — последним элементом окна
-  const grip = document.createElement("div"); grip.className = "grip"; grip.setAttribute("aria-hidden", "true");
-  (sh.querySelector(".sh-foot") || sh).appendChild(grip);
-  let y0 = null, up = 0, t0 = 0;
-  const start = e => {
-    if (e.target.closest("button") || matchMedia("(min-width:820px)").matches) return;
-    y0 = e.touches[0].clientY; up = 0; t0 = Date.now(); sh.style.transition = "none";
-  };
-  const move = e => {
-    if (y0 === null) return;
-    up = Math.max(0, y0 - e.touches[0].clientY); sh.style.transform = `translateY(${-up}px)`; sh.style.opacity = String(Math.max(.4, 1 - up / 400));
-  };
-  [head, grip].forEach(z => { z.addEventListener("touchstart", start, { passive: true }); z.addEventListener("touchmove", move, { passive: true }); });
-  const end = () => {
-    if (y0 === null) return;
-    y0 = null; sh.style.transition = "transform .2s ease, opacity .2s ease";
-    const flick = up > 60 && up / Math.max(1, Date.now() - t0) > 0.8;   // резкое смахивание (px/мс)
-    if (up > 110 || flick){
-      sh.style.transform = "translateY(-120%)"; sh.style.opacity = "0";
-      setTimeout(() => { closeSheet(ov); sh.style.transform = ""; sh.style.opacity = ""; sh.style.transition = ""; }, 200);
-    } else { sh.style.transform = ""; sh.style.opacity = ""; }
-  };
-  [head, grip].forEach(z => { z.addEventListener("touchend", end); z.addEventListener("touchcancel", end); });
-});
+function openSheet(id){ const el = F(id); el.style.zIndex = ++sheetZ; el.hidden = false; document.body.style.overflow = "hidden"; }
+function closeSheet(el){ el.hidden = true; if (!$$(".overlay").some(o => !o.hidden)) document.body.style.overflow = ""; }
+$$(".overlay").forEach(ov => ov.addEventListener("click", e => { if (e.target === ov || e.target.closest("[data-close]")) closeSheet(ov); }));
+document.addEventListener("keydown", e => { if (e.key === "Escape"){ const o = $$(".overlay").filter(x => !x.hidden).pop(); if (o) closeSheet(o); } });
 const newId = () => "d" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 // Запоминаем выбранный кабинет — только удобство, без него всё работает
 function lsGet(k){ try { return localStorage.getItem("platezhki." + k); } catch { return null; } }
