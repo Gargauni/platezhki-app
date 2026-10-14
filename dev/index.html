@@ -101,7 +101,6 @@ button{cursor:pointer}
 .scanlist li{display:flex;justify-content:space-between;gap:10px;font-size:.88rem;border:1px solid var(--line);border-radius:8px;padding:7px 10px;min-width:0}
 .scanlist li span:first-child{min-width:0;overflow-wrap:anywhere}
 .scanlist li .st{color:var(--muted);white-space:nowrap;font-family:var(--f-num);font-size:.8rem}
-.check{display:flex;gap:8px;align-items:center;font-size:.92rem}
 .pending{font-size:.85rem;color:var(--muted);display:grid;gap:4px}
 .howscan summary{cursor:pointer;color:var(--accent-text,var(--accent));font-weight:500}
 .howscan ol{margin-top:8px}
@@ -405,8 +404,11 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
         <input type="file" id="scanFiles" multiple accept="application/pdf,image/*,.zip,.xml,.xls,.xlsx,.csv">
       </label>
       <ul class="scanlist" id="scanList" hidden></ul>
-      <label class="check"><input type="checkbox" id="scanReq"> Только для реквизитов — платить не нужно</label>
-      <div class="f wide"><label for="scanNote">Комментарий (необязательно)</label><input id="scanNote" autocomplete="off" placeholder="например: срочно, просрочка"></div>
+      <div class="chips" role="group" aria-label="Пометки">
+        <button type="button" class="chip" id="tagUrgent" aria-pressed="false">Срочно</button>
+        <button type="button" class="chip" id="tagReq" aria-pressed="false">Только для реквизитов</button>
+      </div>
+      <div class="f wide"><label for="scanNote">Свой комментарий (необязательно)</label><input id="scanNote" autocomplete="off"></div>
       <div class="banner bad" id="scanErr" hidden></div>
       <div class="pending" id="scanPending"></div>
     </div>
@@ -563,9 +565,15 @@ const inboxWhy = e => e && (e.status === 403 || e.status === 404) ? "Нет до
 F("btnScan").onclick = () => {
   const o = orgById(S.org) || {};
   F("scanOrg").innerHTML = `<b>Для: ${esc(o.name || "—")}</b><span>Документы попадут в кабинет этого ИП. Сменить — закройте окно и выберите другую карточку ИП.</span>`;
-  INBOX.files = []; F("scanFiles").value = ""; F("scanReq").checked = false; F("scanNote").value = ""; F("scanErr").hidden = true;
+  INBOX.files = []; F("scanFiles").value = ""; resetTags(); F("scanNote").value = ""; F("scanErr").hidden = true;
   renderScanList(); openSheet("ovScan"); loadPending();
 };
+// Пометки-кнопки: «Срочно» и «Только для реквизитов» взаимоисключающие — реквизиты не платим
+const pressed = id => F(id).getAttribute("aria-pressed") === "true";
+function resetTags(){ ["tagUrgent", "tagReq"].forEach(id => F(id).setAttribute("aria-pressed", "false")); }
+["tagUrgent", "tagReq"].forEach(id => F(id).addEventListener("click", () => {
+  const on = !pressed(id); resetTags(); F(id).setAttribute("aria-pressed", String(on));
+}));
 F("scanFiles").addEventListener("change", e => { INBOX.files = [...e.target.files].map(f => ({ f, st: "" })); renderScanList(); });
 function renderScanList(){
   const l = F("scanList"); l.hidden = !INBOX.files.length;
@@ -584,9 +592,9 @@ async function loadPending(){
 }
 // Все выбранные файлы — одним коммитом через Git Data API (подходит и для файлов больше 1 МБ)
 F("btnUpload").onclick = async () => {
-  const o = orgById(S.org) || {}, note = F("scanNote").value.trim(), req = F("scanReq").checked;
+  const o = orgById(S.org) || {}, note = F("scanNote").value.trim(), req = pressed("tagReq"), urgent = pressed("tagUrgent");
   const now = new Date(), day = C.iso(now), hhmm = now.toTimeString().slice(0, 8).replace(/:/g, "");
-  const tag = C.orgShort(o.name || "").replace(/\s+/g, "") + (req ? "_РЕКВИЗИТЫ" : "");
+  const tag = C.orgShort(o.name || "").replace(/\s+/g, "") + (req ? "_РЕКВИЗИТЫ" : "") + (urgent ? "_СРОЧНО" : "");
   F("btnUpload").disabled = true; F("scanErr").hidden = true;
   try {
     const tree = [];
@@ -597,7 +605,7 @@ F("btnUpload").onclick = async () => {
       tree.push({ path: `inbox/${day}/${hhmm}_${tag}_${safeName(x.f.name)}`, mode: "100644", type: "blob", sha: (await r.json()).sha });
       x.st = "✓"; renderScanList();
     }
-    const info = `Организация: ${o.name || ""} (${o.inn || ""})\n` + (req ? "Только для реквизитов — не платить\n" : "") + (note ? "Комментарий: " + note + "\n" : "")
+    const info = `Организация: ${o.name || ""} (${o.inn || ""})\n` + (req ? "Только для реквизитов — не платить\n" : "") + (urgent ? "Срочно\n" : "") + (note ? "Комментарий: " + note + "\n" : "")
       + "Файлы:\n" + INBOX.files.map(x => "- " + x.f.name).join("\n") + "\n";
     tree.push({ path: `inbox/${day}/${hhmm}_${tag}_заметка.txt`, mode: "100644", type: "blob", content: info });
     for (let attempt = 0; ; attempt++){
@@ -606,14 +614,14 @@ F("btnUpload").onclick = async () => {
       const head = (await ref.json()).object.sha;
       const base = await gh("GET", "/git/commits/" + head, null, INBOX.repo); if (!base.ok) throw ghFail(base.status);
       const t = await gh("POST", "/git/trees", { base_tree: (await base.json()).tree.sha, tree }, INBOX.repo); if (!t.ok) throw ghFail(t.status);
-      const c = await gh("POST", "/git/commits", { message: `Сканы: ${INBOX.files.length} шт. — ${C.orgShort(o.name || "")}${req ? " (реквизиты)" : ""}`, tree: (await t.json()).sha, parents: [head] }, INBOX.repo);
+      const c = await gh("POST", "/git/commits", { message: `Сканы: ${INBOX.files.length} шт. — ${C.orgShort(o.name || "")}${req ? " (реквизиты)" : ""}${urgent ? " (срочно)" : ""}`, tree: (await t.json()).sha, parents: [head] }, INBOX.repo);
       if (!c.ok) throw ghFail(c.status);
       const u = await gh("PATCH", "/git/refs/heads/" + INBOX.branch, { sha: (await c.json()).sha }, INBOX.repo);
       if (u.ok) break;
       if (u.status !== 422 || attempt > 2) throw ghFail(u.status);   // кто-то успел загрузить одновременно — повторяем
     }
     toast(`Отправлено на разбор: ${INBOX.files.length} ${plural(INBOX.files.length, "файл", "файла", "файлов")}`);
-    INBOX.files = []; F("scanFiles").value = ""; F("scanNote").value = ""; F("scanReq").checked = false; renderScanList(); loadPending();
+    INBOX.files = []; F("scanFiles").value = ""; F("scanNote").value = ""; resetTags(); renderScanList(); loadPending();
   } catch (e) {
     F("scanErr").textContent = inboxWhy(e); F("scanErr").hidden = false;
     INBOX.files.forEach(x => { if (x.st === "загружаю…") x.st = "ошибка"; }); renderScanList();
