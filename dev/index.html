@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <!-- Версия программы: менять при каждой выкладке здесь и в ?v= у core.js ниже — по ней трекер узнаёт, что вышло обновление -->
-<meta name="app-version" content="R4.4">
+<meta name="app-version" content="R4.5">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#092634">
 <meta name="mobile-web-app-capable" content="yes">
@@ -246,15 +246,11 @@ legend{padding:0;margin-bottom:8px}
 ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
 .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:.9rem;z-index:40;max-width:calc(100% - 32px)}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(12px);opacity:.6}}}
-/* Телефон: окна снизу, как в iOS — с «ручкой» сверху; потянуть за верх окна вниз — закрыть */
+/* Телефон: окна сверху (как в R4.2); за шапку окна с «ручкой» можно смахнуть окно вверх — закрыть */
 @media (max-width:819px){
-  .overlay{align-items:flex-end;padding:calc(24px + env(safe-area-inset-top)) 0 0}
-  .sheet{border-radius:16px 16px 0 0;max-height:calc(100dvh - 24px - env(safe-area-inset-top));overflow-y:auto;overscroll-behavior:contain;padding-bottom:env(safe-area-inset-bottom)}
   .sh-head{position:relative;padding-top:24px;touch-action:none;cursor:grab}
   .sh-head::before{content:"";position:absolute;top:8px;left:50%;transform:translateX(-50%);width:40px;height:5px;border-radius:3px;background:var(--line)}
-  .sh-foot{border-radius:0}
 }
-@media (max-width:819px) and (prefers-reduced-motion:no-preference){ .sheet{animation:sheetIn .25s cubic-bezier(.2,.8,.2,1)} @keyframes sheetIn{from{transform:translateY(100%)}} }
 </style>
 </head>
 <body>
@@ -534,7 +530,7 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
 
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="core.js?v=R4.4"></script>
+<script src="core.js?v=R4.5"></script>
 <script>
 (() => {
 "use strict";
@@ -850,27 +846,27 @@ function closeSheet(el){ el.hidden = true; el.inert = false; syncLayers(); }
 // Нажатие на затемнённый фон окно НЕ закрывает (чтобы не потерять выбранное и набранное) — только «×» и «Закрыть»
 $$(".overlay").forEach(ov => ov.addEventListener("click", e => { if (e.target.closest("[data-close]")) closeSheet(ov); }));
 document.addEventListener("keydown", e => { if (e.key === "Escape"){ const o = openSheets().pop(); if (o) closeSheet(o); } });
-// Телефон: потянуть окно за верх (ручку/заголовок) вниз — закрыть; немного потянули и отпустили — вернётся
+// Телефон: смахнуть окно за шапку вверх — «скинуть» (закрыть); немного потянули и отпустили — вернётся
 $$(".overlay").forEach(ov => {
   const sh = ov.querySelector(".sheet"), head = ov.querySelector(".sh-head");
   if (!sh || !head) return;
-  let y0 = null, dy = 0, t0 = 0;
+  let y0 = null, up = 0, t0 = 0;
   head.addEventListener("touchstart", e => {
     if (e.target.closest("button") || matchMedia("(min-width:820px)").matches) return;
-    y0 = e.touches[0].clientY; dy = 0; t0 = Date.now(); sh.style.transition = "none";
+    y0 = e.touches[0].clientY; up = 0; t0 = Date.now(); sh.style.transition = "none";
   }, { passive: true });
   head.addEventListener("touchmove", e => {
     if (y0 === null) return;
-    dy = Math.max(0, e.touches[0].clientY - y0); sh.style.transform = `translateY(${dy}px)`;
+    up = Math.max(0, y0 - e.touches[0].clientY); sh.style.transform = `translateY(${-up}px)`; sh.style.opacity = String(Math.max(.4, 1 - up / 400));
   }, { passive: true });
   const end = () => {
     if (y0 === null) return;
-    y0 = null; sh.style.transition = "transform .2s ease";
-    const flick = dy > 60 && dy / Math.max(1, Date.now() - t0) > 0.8;   // резкое смахивание (px/мс)
-    if (dy > 110 || flick){
-      sh.style.transform = "translateY(100%)";
-      setTimeout(() => { closeSheet(ov); sh.style.transform = ""; sh.style.transition = ""; }, 200);
-    } else sh.style.transform = "";
+    y0 = null; sh.style.transition = "transform .2s ease, opacity .2s ease";
+    const flick = up > 60 && up / Math.max(1, Date.now() - t0) > 0.8;   // резкое смахивание (px/мс)
+    if (up > 110 || flick){
+      sh.style.transform = "translateY(-120%)"; sh.style.opacity = "0";
+      setTimeout(() => { closeSheet(ov); sh.style.transform = ""; sh.style.opacity = ""; sh.style.transition = ""; }, 200);
+    } else { sh.style.transform = ""; sh.style.opacity = ""; }
   };
   head.addEventListener("touchend", end); head.addEventListener("touchcancel", end);
 });
