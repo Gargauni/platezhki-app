@@ -94,6 +94,9 @@ button{cursor:pointer}
 .btn.quiet{border-color:transparent;background:transparent;color:var(--muted);padding:6px 8px}
 .btn.quiet:hover{color:var(--ink)}
 .btn.danger{color:var(--bad)}
+.btn.danger-fill{background:var(--bad);border-color:var(--bad);color:var(--surface);font-weight:600}
+.btn.danger-fill:disabled{opacity:.4}
+.grow{flex:1}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 .btn.sm{padding:5px 10px;font-size:.85rem}
 
@@ -357,6 +360,22 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
   </div>
 </div>
 
+<!-- Удаление организации: только после ввода слова «удалить» -->
+<div class="overlay" id="ovDelOrg" hidden>
+  <div class="sheet narrow" role="dialog" aria-modal="true" aria-labelledby="delOrgTitle">
+    <div class="sh-head"><h2 id="delOrgTitle">Удалить организацию?</h2><button class="x" type="button" data-close aria-label="Закрыть">×</button></div>
+    <div class="sh-body">
+      <div class="banner bad" id="delOrgInfo"></div>
+      <div class="f wide"><label for="delOrgWord">Чтобы подтвердить, введите слово <b>удалить</b></label><input id="delOrgWord" autocomplete="off" spellcheck="false" autocapitalize="off"></div>
+    </div>
+    <div class="sh-foot">
+      <span class="grow"></span>
+      <button class="btn" type="button" data-close>Отмена</button>
+      <button class="btn danger-fill" type="button" id="btnDelOrgGo" disabled>Удалить</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="ovTheme" hidden>
   <div class="sheet narrow" role="dialog" aria-modal="true" aria-labelledby="themeTitle">
     <div class="sh-head"><h2 id="themeTitle">Тема оформления</h2><button class="x" type="button" data-close aria-label="Закрыть">×</button></div>
@@ -390,7 +409,7 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
               <div class="f wide"><label>Платёжные дни</label><div class="days" id="o-days"></div></div>
             </div>
             <div id="orgErrs"></div>
-            <div class="actions"><button class="btn primary sm" type="button" id="btnOrgSave">Сохранить организацию</button><button class="btn sm quiet" type="button" id="btnOrgNew">Новая</button></div>
+            <div class="actions"><button class="btn primary sm" type="button" id="btnOrgSave">Сохранить организацию</button><button class="btn sm quiet" type="button" id="btnOrgNew">Новая</button><span class="grow"></span><button class="btn sm danger" type="button" id="btnOrgDel" hidden>Удалить организацию</button></div>
           </fieldset>
         </form>
       </div>
@@ -744,7 +763,9 @@ async function copy(text, label){
   catch { const ta = document.createElement("textarea"); ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0"; document.body.appendChild(ta); ta.select();
     let ok = false; try { ok = document.execCommand("copy"); } catch {} ta.remove(); toast(ok ? label + " — скопировано" : "Не удалось скопировать"); }
 }
-function openSheet(id){ F(id).hidden = false; document.body.style.overflow = "hidden"; }
+// Каждое открытое окно — поверх предыдущих (меню → раздел → подтверждение)
+let sheetZ = 20;
+function openSheet(id){ const el = F(id); el.style.zIndex = ++sheetZ; el.hidden = false; document.body.style.overflow = "hidden"; }
 function closeSheet(el){ el.hidden = true; if (!$$(".overlay").some(o => !o.hidden)) document.body.style.overflow = ""; }
 $$(".overlay").forEach(ov => ov.addEventListener("click", e => { if (e.target === ov || e.target.closest("[data-close]")) closeSheet(ov); }));
 document.addEventListener("keydown", e => { if (e.key === "Escape"){ const o = $$(".overlay").filter(x => !x.hidden).pop(); if (o) closeSheet(o); } });
@@ -1034,8 +1055,26 @@ function fillOrgForm(o){
   F("o-name").value = v.name || ""; F("o-inn").value = v.inn || ""; F("o-kpp").value = v.kpp || ""; F("o-acc").value = v.account || "";
   F("o-bik").value = v.bik || ""; F("o-corr").value = v.corr || ""; F("o-bank").value = v.bank || ""; F("o-city").value = v.city || ""; F("o-next").value = v.nextNo || "";
   const days = (o && o.payDays) || DEFAULT_DAYS; $$("#o-days input").forEach(i => { i.checked = days.includes(Number(i.value)); });
-  F("orgErrs").innerHTML = "";
+  F("orgErrs").innerHTML = ""; F("btnOrgDel").hidden = !o;
 }
+// Удаление организации вместе с её документами: иначе документы без организации попали бы в кабинет первого ИП
+F("btnOrgDel").onclick = () => {
+  const o = S.orgEdit; if (!o) return;
+  const ds = docs().filter(d => d.orgId === o.id), open = ds.filter(d => d.status !== "paid");
+  F("delOrgInfo").innerHTML = `<div><b>${esc(o.name)}</b>, ИНН ${esc(o.inn)}<br>Вместе с ней удалятся ${ds.length} ${plural(ds.length, "документ", "документа", "документов")}`
+    + (open.length ? `, из них <b>${open.length} не ${plural(open.length, "оплачен", "оплачены", "оплачены")} на ${rub(sum(open))} ₽</b>` : "") + `.<br>Поставщики в справочнике останутся.`
+    + `<br><span style="font-size:.85em">Отменить в трекере нельзя. Если удалили по ошибке — Claude восстановит из истории GitHub.</span></div>`;
+  F("delOrgWord").value = ""; F("btnDelOrgGo").disabled = true; openSheet("ovDelOrg"); setTimeout(() => F("delOrgWord").focus(), 50);
+};
+F("delOrgWord").addEventListener("input", e => { F("btnDelOrgGo").disabled = e.target.value.trim().toLowerCase() !== "удалить"; });
+F("btnDelOrgGo").onclick = () => {
+  const o = S.orgEdit; if (!o || F("delOrgWord").value.trim().toLowerCase() !== "удалить") return;
+  S.data.docs = docs().filter(d => d.orgId !== o.id);
+  S.data.orgs = orgs().filter(x => x.id !== o.id);
+  if (S.org === o.id){ S.org = (orgs()[0] || {}).id || ""; lsSet("org", S.org); }
+  closeSheet(F("ovDelOrg")); fillOrgForm(orgs()[0] || null);
+  persist(); renderReq(); render(); toast("Организация удалена: " + o.name);
+};
 F("btnOrgSave").onclick = () => {
   const o = { name: F("o-name").value.trim(), inn: digits(F("o-inn").value), kpp: digits(F("o-kpp").value), account: digits(F("o-acc").value),
     bik: digits(F("o-bik").value), corr: digits(F("o-corr").value), bank: F("o-bank").value.trim(), city: F("o-city").value.trim(),
