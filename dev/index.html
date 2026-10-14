@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <!-- Версия программы: менять при каждой выкладке здесь и в ?v= у core.js ниже — по ней трекер узнаёт, что вышло обновление -->
-<meta name="app-version" content="R5">
+<meta name="app-version" content="R5.1">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#092634">
 <meta name="mobile-web-app-capable" content="yes">
@@ -124,6 +124,9 @@ button{cursor:pointer}
 
 .update{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;background:var(--accent);color:var(--accent-ink);border-radius:var(--r);padding:10px 14px;font-size:.92rem}
 .update .btn{background:var(--surface);color:var(--ink);border-color:var(--surface);font-weight:600}
+.logout{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;margin-top:14px;padding:14px 16px;border:2px solid var(--bad);border-radius:var(--r);background:var(--bad-soft);color:var(--bad);font-weight:600;font-size:1rem;text-align:center}
+.logout:hover{filter:brightness(1.05)}
+.logout.armed{background:var(--bad);color:var(--surface)}
 .appver{text-align:center;font-size:.8rem;color:var(--muted)}
 .notice{border:1px solid var(--warn);background:var(--warn-soft);border-radius:var(--r);padding:10px 14px;font-size:.9rem}
 .stats{display:flex;flex-wrap:wrap;gap:8px 28px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 18px}
@@ -394,6 +397,11 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
           <span class="mi-t"><b>Реквизиты</b><small>Мои организации и поставщики</small></span><span class="mi-ch" aria-hidden="true">›</span>
         </button>
       </nav>
+      <!-- Выход — отдельно от разделов, красным; срабатывает со второго нажатия -->
+      <button type="button" class="logout" id="btnLogout" hidden>
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+        <span id="logoutText">Выйти</span>
+      </button>
       <p class="appver" id="appVer"></p>
     </div>
   </div>
@@ -589,7 +597,7 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
 
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="core.js?v=R5"></script>
+<script src="core.js?v=R5.1"></script>
 <script>
 (() => {
 "use strict";
@@ -715,6 +723,17 @@ function ghRefresh(quiet){
     renderFileBar();
   }));
 }
+// Первое нажатие — предупреждение, второе (в течение 4 секунд) — выход
+let logoutArmed = 0;
+F("btnLogout").addEventListener("click", () => {
+  if (Date.now() - logoutArmed > 4000){
+    logoutArmed = Date.now(); F("btnLogout").classList.add("armed");
+    F("logoutText").textContent = "Нажмите ещё раз, чтобы выйти";
+    setTimeout(() => { if (Date.now() - logoutArmed >= 4000){ F("btnLogout").classList.remove("armed"); F("logoutText").textContent = "Выйти"; } }, 4100);
+    return;
+  }
+  ghLogout();
+});
 function ghLogout(){
   if (FS.dirty && !confirm("Есть несохранённые изменения. Всё равно выйти?")) return;
   try { localStorage.removeItem("platezhki.gh.token"); } catch {}
@@ -850,9 +869,8 @@ function renderFileBar(){
     const draft = GH.branch !== "main";
     b.classList.toggle("dirty", !!GH.err || FS.dirty);
     b.innerHTML = `<span><span class="dot"></span>Данные: GitHub${draft ? " · <b>ЧЕРНОВИК, тестовая копия (ветка " + esc(GH.branch) + ")</b>" : ""} · ${GH.busy ? "сохраняю…" : FS.dirty ? "сохраню через секунду…" : FS.savedAt ? "сохранено в " + FS.savedAt : "загружено"}</span>`
-      + (GH.err ? `<span style="color:var(--bad)">${esc(GH.err)}</span><button class="btn sm" type="button" id="btnGhRetry">Повторить</button>` : "")
-      + `<button class="btn sm quiet" type="button" id="btnGhOut">Выйти</button>`;
-    F("btnGhOut").onclick = ghLogout;
+      + (GH.err ? `<span style="color:var(--bad)">${esc(GH.err)}</span><button class="btn sm" type="button" id="btnGhRetry">Повторить</button>` : "");
+    F("btnLogout").hidden = false;   // выход — в «Настройках»
     const rb = F("btnGhRetry"); if (rb) rb.onclick = () => { GH.err = ""; if (FS.dirty) FS.chain = FS.chain.then(ghSave); else ghRefresh(); renderFileBar(); };
     return;
   }
