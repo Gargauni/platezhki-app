@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <!-- Версия программы: менять при каждой выкладке здесь и в ?v= у core.js ниже — по ней трекер узнаёт, что вышло обновление -->
-<meta name="app-version" content="R4.5">
+<meta name="app-version" content="R4.6">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#092634">
 <meta name="mobile-web-app-capable" content="yes">
@@ -246,10 +246,13 @@ legend{padding:0;margin-bottom:8px}
 ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
 .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:.9rem;z-index:40;max-width:calc(100% - 32px)}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(12px);opacity:.6}}}
-/* Телефон: окна сверху (как в R4.2); за шапку окна с «ручкой» можно смахнуть окно вверх — закрыть */
+/* Телефон: «ручка» внизу окна — взять и смахнуть окно вверх (закрыть). Шапка окна — тоже место для жеста */
+.grip{display:none}
 @media (max-width:819px){
-  .sh-head{position:relative;padding-top:24px;touch-action:none;cursor:grab}
-  .sh-head::before{content:"";position:absolute;top:8px;left:50%;transform:translateX(-50%);width:40px;height:5px;border-radius:3px;background:var(--line)}
+  .sh-head{touch-action:none}
+  .grip{display:grid;place-items:center;flex-basis:100%;order:99;height:26px;margin:-6px 0 -10px;touch-action:none;cursor:grab}
+  .grip::before{content:"";width:44px;height:5px;border-radius:3px;background:var(--muted);opacity:.45}
+  .sheet > .grip{margin:0 0 4px}
 }
 </style>
 </head>
@@ -530,7 +533,7 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
 
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="core.js?v=R4.5"></script>
+<script src="core.js?v=R4.6"></script>
 <script>
 (() => {
 "use strict";
@@ -846,19 +849,23 @@ function closeSheet(el){ el.hidden = true; el.inert = false; syncLayers(); }
 // Нажатие на затемнённый фон окно НЕ закрывает (чтобы не потерять выбранное и набранное) — только «×» и «Закрыть»
 $$(".overlay").forEach(ov => ov.addEventListener("click", e => { if (e.target.closest("[data-close]")) closeSheet(ov); }));
 document.addEventListener("keydown", e => { if (e.key === "Escape"){ const o = openSheets().pop(); if (o) closeSheet(o); } });
-// Телефон: смахнуть окно за шапку вверх — «скинуть» (закрыть); немного потянули и отпустили — вернётся
+// Телефон: взять окно за «ручку» внизу (или за шапку) и смахнуть вверх — «скинуть» (закрыть); немного потянули и отпустили — вернётся
 $$(".overlay").forEach(ov => {
   const sh = ov.querySelector(".sheet"), head = ov.querySelector(".sh-head");
   if (!sh || !head) return;
+  // Ручка — в самом низу окна: в закреплённой панели кнопок, а если её нет — последним элементом окна
+  const grip = document.createElement("div"); grip.className = "grip"; grip.setAttribute("aria-hidden", "true");
+  (sh.querySelector(".sh-foot") || sh).appendChild(grip);
   let y0 = null, up = 0, t0 = 0;
-  head.addEventListener("touchstart", e => {
+  const start = e => {
     if (e.target.closest("button") || matchMedia("(min-width:820px)").matches) return;
     y0 = e.touches[0].clientY; up = 0; t0 = Date.now(); sh.style.transition = "none";
-  }, { passive: true });
-  head.addEventListener("touchmove", e => {
+  };
+  const move = e => {
     if (y0 === null) return;
     up = Math.max(0, y0 - e.touches[0].clientY); sh.style.transform = `translateY(${-up}px)`; sh.style.opacity = String(Math.max(.4, 1 - up / 400));
-  }, { passive: true });
+  };
+  [head, grip].forEach(z => { z.addEventListener("touchstart", start, { passive: true }); z.addEventListener("touchmove", move, { passive: true }); });
   const end = () => {
     if (y0 === null) return;
     y0 = null; sh.style.transition = "transform .2s ease, opacity .2s ease";
@@ -868,7 +875,7 @@ $$(".overlay").forEach(ov => {
       setTimeout(() => { closeSheet(ov); sh.style.transform = ""; sh.style.opacity = ""; sh.style.transition = ""; }, 200);
     } else { sh.style.transform = ""; sh.style.opacity = ""; }
   };
-  head.addEventListener("touchend", end); head.addEventListener("touchcancel", end);
+  [head, grip].forEach(z => { z.addEventListener("touchend", end); z.addEventListener("touchcancel", end); });
 });
 const newId = () => "d" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 // Запоминаем выбранный кабинет — только удобство, без него всё работает
