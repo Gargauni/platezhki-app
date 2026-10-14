@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <!-- Версия программы: менять при каждой выкладке здесь и в ?v= у core.js ниже — по ней трекер узнаёт, что вышло обновление -->
-<meta name="app-version" content="R5.2">
+<meta name="app-version" content="R5.3">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#092634">
 <meta name="mobile-web-app-capable" content="yes">
@@ -266,6 +266,12 @@ legend{padding:0;margin-bottom:8px}
 .po-one .t{font-size:.8rem;color:var(--muted)}
 .total{display:flex;flex-wrap:wrap;gap:6px 16px;justify-content:space-between;align-items:baseline;font-size:.95rem}
 ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
+/* Файлы для банка после выгрузки — у каждого свои кнопки */
+.filelist{margin:0 0 6px;padding:0;list-style:none;display:grid;gap:8px}
+.filelist li{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.fl-name{display:grid;gap:2px;min-width:0;flex:1 1 200px}
+.fl-name small{color:var(--muted);font-size:.78rem;overflow-wrap:anywhere}
+.fl-acts{display:flex;gap:6px;flex-wrap:wrap}
 .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:.9rem;z-index:40;max-width:calc(100% - 32px)}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(12px);opacity:.6}}}
 </style>
@@ -602,7 +608,7 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
 
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="core.js?v=R5.2"></script>
+<script src="core.js?v=R5.3"></script>
 <script>
 (() => {
 "use strict";
@@ -1286,20 +1292,34 @@ function renderExport(){
 F("btnDownload").onclick = () => {
   const P = plan(); if (!P.orders.length) return;
   const dateISO = F("e-date").value || today();
-  const files = C.exportFiles(P.org, P.orders, dateISO);
-  // Небольшая пауза между файлами, иначе браузер может скачать не все
-  files.forEach((f, i) => setTimeout(() => downloadBlob(new Blob([C.cp1251(f.text)], { type: "text/plain" }), f.name), i * 400));
+  const files = C.exportFiles(P.org, P.orders, dateISO).map(f => ({ ...f, blob: new Blob([C.cp1251(f.text)], { type: "text/plain" }) }));
+  // Телефон скачивает автоматически только первый файл (остальные браузер блокирует) — там даём кнопки у каждого файла.
+  // На ПК — как раньше: все файлы сразу, с небольшой паузой, иначе браузер может скачать не все.
+  const phone = matchMedia("(pointer:coarse)").matches;
+  if (!phone) files.forEach((f, i) => setTimeout(() => downloadBlob(f.blob, f.name), i * 400));
   C.markExported(S.data, P, dateISO); persist(); render();
   const ids = P.orders.flatMap(o => o.docs.map(d => d.id));
+  let canShare = false;
+  try { canShare = !!(navigator.canShare && navigator.canShare({ files: [new File([files[0].blob], files[0].name, { type: "text/plain" })] })); } catch {}
   F("expBody").hidden = true; F("btnDownload").hidden = true; F("expDone").hidden = false;
-  F("expDone").innerHTML = `<h2>Файл готов: ${P.orders.length} ${plural(P.orders.length, "платёжка", "платёжки", "платёжек")} на ${rub(sum(P.orders))} ₽</h2>
+  F("expDone").innerHTML = `<h2>${files.length > 1 ? "Файлы готовы" : "Файл готов"}: ${P.orders.length} ${plural(P.orders.length, "платёжка", "платёжки", "платёжек")} на ${rub(sum(P.orders))} ₽</h2>
+    <ul class="filelist">${files.map((f, i) => `<li>
+      <span class="fl-name"><b>${esc(f.sup.name)}</b><small class="mono">${esc(f.name)}</small></span>
+      <span class="fl-acts"><button class="btn sm" type="button" data-dl="${i}">${phone ? "Скачать" : "Скачать ещё раз"}</button>${canShare ? `<button class="btn sm" type="button" data-share="${i}">Сохранить в Файлы</button>` : ""}</span>
+    </li>`).join("")}</ul>
     <ol class="howto">
-      <li>${files.length > 1 ? "Файлы сохранены" : "Файл сохранён"} в папку «Загрузки»:<br>${files.map(f => `<span class="mono">${esc(f.name)}</span>`).join("<br>")}${files.length > 1 ? `<br><span style="color:var(--muted);font-size:.82rem">Если браузер спросит про скачивание нескольких файлов — разрешите.</span>` : ""}</li>
-      <li>В интернет-банке ${esc(P.org.bank || "")} откройте импорт платёжных поручений из 1С и загрузите ${files.length > 1 ? "каждый файл" : "этот файл"}.</li>
+      <li>${phone ? "Скачайте каждый файл кнопкой выше. На iPhone они попадают в «Файлы» → «Загрузки» (в Яндекс Браузере — в его «Загрузки»). «Сохранить в Файлы» — выбрать папку самому." : `${files.length > 1 ? "Файлы сохранены" : "Файл сохранён"} в папку «Загрузки». Если какого-то нет — «Скачать ещё раз».`}</li>
+      <li>В интернет-банке ${esc(P.org.bank || "")} откройте импорт платёжных поручений из 1С и загрузите ${files.length > 1 ? "каждый файл" : "файл"} — в имени файла есть поставщик и номер платёжки.</li>
       <li>Сверьте суммы и подпишите. Номера платёжек: ${P.orders[0].no}–${P.orders[P.orders.length - 1].no}.</li>
       <li>${GH.on ? "Отметки сохраняются на GitHub сами — ничего нажимать не нужно." : "В GitHub Desktop сделайте Commit и Push, чтобы статусы дошли до личного ПК."}</li>
     </ol>
     <div class="actions"><button class="btn primary" type="button" id="btnDonePaid">Банк исполнил — отметить оплаченными</button></div>`;
+  F("expDone").querySelectorAll("[data-dl]").forEach(b => b.onclick = () => { const f = files[+b.dataset.dl]; downloadBlob(f.blob, f.name); b.textContent = "Скачано ✓"; });
+  F("expDone").querySelectorAll("[data-share]").forEach(b => b.onclick = async () => {
+    const f = files[+b.dataset.share];
+    try { await navigator.share({ files: [new File([f.blob], f.name, { type: "text/plain" })], title: f.name }); b.textContent = "Готово ✓"; }
+    catch (e) { if (e && e.name !== "AbortError") toast("Не удалось — используйте «Скачать»"); }
+  });
   F("btnDonePaid").onclick = () => { setStatus(ids.map(id => docs().find(d => d.id === id)).filter(Boolean), "paid"); closeSheet(F("ovExp")); };
 };
 F("btnAdd").onclick = () => openDoc(null);
