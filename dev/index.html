@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <!-- Версия программы: менять при каждой выкладке здесь и в ?v= у core.js ниже — по ней трекер узнаёт, что вышло обновление -->
-<meta name="app-version" content="R4.9">
+<meta name="app-version" content="R4.10">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#092634">
 <meta name="mobile-web-app-capable" content="yes">
@@ -88,7 +88,8 @@ button{cursor:pointer}
 .top .actions .btn{padding:12px 14px;font-size:1rem}
 #btnExport{grid-column:1/-1}
 #btnScan[hidden] + #btnAdd{grid-column:1/-1}
-#btnScan,#btnAdd{border:2px solid var(--accent);color:var(--accent-text,var(--accent));font-weight:600}
+#btnEdo{grid-column:1/-1}
+#btnScan,#btnAdd,#btnEdo{border:2px solid var(--accent);color:var(--accent-text,var(--accent));font-weight:600}
 /* Пометки в «Добавить скан»: срочно — красный, только реквизиты — синий; цвета не зависят от ИП */
 #tagUrgent{border-color:var(--bad);color:var(--bad);font-weight:600}
 #tagUrgent[aria-pressed="true"]{background:var(--bad);border-color:var(--bad);color:var(--surface)}
@@ -99,7 +100,7 @@ button{cursor:pointer}
   .top{grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:16px}
   .top .actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}
   .top .actions .btn{padding:9px 16px;font-size:.95rem}
-  #btnScan{order:1} #btnAdd{order:2} #btnExport{order:3}
+  #btnEdo{order:0} #btnScan{order:1} #btnAdd{order:2} #btnExport{order:3}
 }
 .top .sub{color:var(--muted);font-size:.9rem;margin-top:2px}
 .actions{display:flex;flex-wrap:wrap;gap:8px}
@@ -156,6 +157,19 @@ button{cursor:pointer}
 /* Системную кнопку выбора файла прячем: на iPhone её подпись с именем файла не сжимается и раздвигает окно. Нажимается вся рамка (label), выбранные файлы — списком ниже */
 .drop input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
 .scanlist{margin:0;padding:0;list-style:none;display:grid;gap:6px}
+/* Список документов из ЭДО */
+.edolist{display:grid;gap:8px}
+.edoitem{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 12px;align-items:start;border:1px solid var(--line);border-radius:8px;padding:10px 12px;cursor:pointer}
+.edoitem input{margin-top:3px;width:18px;height:18px}
+.edoitem:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.ei-main{display:grid;gap:2px;min-width:0;overflow-wrap:anywhere}
+.ei-main small{color:var(--muted);font-size:.8rem}
+.ei-main .mono{font-size:.88rem}
+.ei-main .ei-warn{color:var(--warn)}
+.ei-amt{text-align:right;white-space:nowrap}
+.ei-amt small{display:block;color:var(--muted);font-size:.75rem}
+.edoskip summary{cursor:pointer;color:var(--muted)}
+.edoskip ul{margin-top:8px}
 .scanlist li{display:flex;justify-content:space-between;gap:10px;font-size:.88rem;border:1px solid var(--line);border-radius:8px;padding:7px 10px;min-width:0}
 .scanlist li span:first-child{min-width:0;overflow-wrap:anywhere}
 .scanlist li .st{color:var(--muted);white-space:nowrap;font-family:var(--f-num);font-size:.8rem}
@@ -262,6 +276,7 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
       <button class="btn primary" id="btnExport" type="button" disabled>Выгрузить в банк</button>
       <button class="btn" id="btnScan" type="button" hidden>Добавить скан</button>
       <button class="btn" id="btnAdd" type="button" disabled>+ Документ</button>
+      <button class="btn" id="btnEdo" type="button" disabled>Из ЭДО</button>
     </div>
   </header>
   <div class="filebar" id="filebar" hidden></div>
@@ -506,6 +521,36 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
   </div>
 </div>
 
+<!-- Документы из ЭДО: архив Диадока разбирается прямо в браузере, без Claude -->
+<div class="overlay" id="ovEdo" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="edoTitle">
+    <div class="sh-head"><h2 id="edoTitle">Добавить из ЭДО</h2><button class="x" type="button" data-close aria-label="Закрыть">×</button></div>
+    <div class="sh-body">
+      <details class="howscan">
+        <summary>Как скачать из Диадока</summary>
+        <ol class="howto">
+          <li>Диадок → «Входящие» → отметьте документы (галочка в шапке списка — все на странице).</li>
+          <li>«Скачать» → <b>«Документ в исходном формате»</b> — получится ZIP-архив.</li>
+          <li>Выберите этот архив здесь. Можно и отдельные XML-файлы.</li>
+        </ol>
+      </details>
+      <label class="drop" for="edoFiles">
+        <b>Выбрать архив или XML</b>
+        <span>Документы попадут в кабинет нужного ИП по ИНН покупателя. Транспортные накладные, служебные файлы, дубли и уже оплаченные — пропускаются.</span>
+        <input type="file" id="edoFiles" multiple accept=".zip,.xml,application/zip,text/xml,application/xml">
+      </label>
+      <div class="pending" id="edoStatus"></div>
+      <div class="edolist" id="edoList"></div>
+      <details class="edoskip" id="edoSkipBox" hidden><summary id="edoSkipSum"></summary><ul class="scanlist" id="edoSkip"></ul></details>
+    </div>
+    <div class="sh-foot">
+      <span class="grow" id="edoTotal"></span>
+      <button class="btn" type="button" data-close>Закрыть</button>
+      <button class="btn primary" type="button" id="btnEdoAdd" disabled>Добавить</button>
+    </div>
+  </div>
+</div>
+
 <!-- Сканы и файлы на разбор: уходят в закрытый репозиторий platezhki-inbox, Claude разбирает их на личном ПК -->
 <div class="overlay" id="ovScan" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="scanTitle">
@@ -544,7 +589,7 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
 
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="core.js?v=R4.9"></script>
+<script src="core.js?v=R4.10"></script>
 <script>
 (() => {
 "use strict";
@@ -571,7 +616,7 @@ function normalize(d){
   return d;
 }
 function useData(d, name){ S.data = normalize(d); FS.name = name || "tracker.json"; S.org = lsGet("org") || ""; $("#openCard").hidden = true; $("#main").hidden = false;
-  ["btnExport","btnAdd"].forEach(id => F(id).disabled = false); render(); renderFileBar(); }
+  ["btnExport","btnAdd","btnEdo"].forEach(id => F(id).disabled = false); render(); renderFileBar(); }
 async function loadHandle(h){
   if ((await h.queryPermission({ mode: "readwrite" })) !== "granted" && (await h.requestPermission({ mode: "readwrite" })) !== "granted") { toast("Без разрешения на запись файл не открыть"); return; }
   const f = await h.getFile();
@@ -1235,6 +1280,64 @@ F("btnDownload").onclick = () => {
   F("btnDonePaid").onclick = () => { setStatus(ids.map(id => docs().find(d => d.id === id)).filter(Boolean), "paid"); closeSheet(F("ovExp")); };
 };
 F("btnAdd").onclick = () => openDoc(null);
+
+/* ---------- добавить из ЭДО ---------- */
+// ZIP распаковываем библиотекой JSZip — подгружаем при первом использовании
+function loadJSZip(){
+  if (window.JSZip) return Promise.resolve(window.JSZip);
+  return new Promise((res, rej) => { const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+    s.onload = () => res(window.JSZip); s.onerror = () => rej(new Error("Не удалось загрузить распаковщик архива — нужен интернет. Можно выбрать сами XML-файлы."));
+    document.head.appendChild(s); });
+}
+const EDO = { plan: null };
+F("btnEdo").onclick = () => { EDO.plan = null; F("edoFiles").value = ""; F("edoStatus").textContent = ""; renderEdo(); openSheet("ovEdo"); };
+F("edoFiles").addEventListener("change", async e => {
+  const files = [...e.target.files]; if (!files.length) return;
+  F("edoStatus").textContent = "Читаю файлы…"; EDO.plan = null; renderEdo();
+  try {
+    const items = [];
+    for (const f of files){
+      if (/\.zip$/i.test(f.name) || f.type.includes("zip")){
+        const zip = await (await loadJSZip()).loadAsync(f);
+        for (const z of Object.values(zip.files)) if (!z.dir && /\.xml$/i.test(z.name)) items.push({ file: z.name.split("/").pop(), text: C.decodeXml(await z.async("uint8array")) });
+      } else if (/\.xml$/i.test(f.name)) items.push({ file: f.name, text: C.decodeXml(new Uint8Array(await f.arrayBuffer())) });
+    }
+    EDO.plan = C.edoPlan(S.data, items);
+    F("edoStatus").textContent = items.length ? `Прочитано файлов: ${items.length}` : "В выбранных файлах нет XML-документов.";
+  } catch (err) { F("edoStatus").textContent = err.message || "Не удалось прочитать файлы."; }
+  renderEdo();
+});
+const edoKey = a => digits(a.seller.inn) + "|" + a.doc.number + "|" + a.doc.date;
+function renderEdo(){
+  const P = EDO.plan, add = P ? P.add : [], skip = P ? P.skip : [];
+  F("edoList").innerHTML = add.length ? `<h3>Добавить</h3>` + add.map((a, i) => `<label class="edoitem">
+      <input type="checkbox" data-edo="${i}" ${a.on ? "checked" : ""}>
+      <span class="ei-main"><b>${esc(a.supName)}</b><span class="mono">${esc(a.numText)}</span>
+        <small>${esc(C.orgShort(a.org.name))} · ${a.doc.type === "invoice" ? "Счёт-фактура" : "УПД"}${a.doc.due ? " · срок " + ru(a.doc.due) : ""}${a.newSup ? " · новый поставщик" : ""}</small>
+        ${a.warn.map(w => `<small class="ei-warn">${esc(w)}</small>`).join("")}</span>
+      <span class="ei-amt mono">${rub(a.doc.amount)} ₽<small>НДС ${rub(a.doc.vat)}</small></span>
+    </label>`).join("") : (P ? `<p style="color:var(--muted)">Новых документов к оплате нет.</p>` : "");
+  F("edoSkipBox").hidden = !skip.length;
+  F("edoSkipSum").textContent = `Пропущено: ${skip.length}`;
+  F("edoSkip").innerHTML = skip.map(s => `<li><span>${esc(s.label || s.file)}</span><span class="st">${esc(s.reason)}</span></li>`).join("");
+  const on = add.filter(a => a.on);
+  F("edoTotal").textContent = on.length ? `${on.length} ${plural(on.length, "документ", "документа", "документов")} · ${rub(on.reduce((s, a) => s + a.doc.amount, 0))} ₽` : "";
+  F("btnEdoAdd").disabled = !on.length; F("btnEdoAdd").textContent = on.length ? `Добавить (${on.length})` : "Добавить";
+}
+F("edoList").addEventListener("change", e => {
+  const c = e.target.closest("input[data-edo]"); if (!c || !EDO.plan) return;
+  const a = EDO.plan.add[+c.dataset.edo]; a.on = c.checked;
+  // варианты одного документа с разными суммами — можно выбрать только один
+  if (a.on) EDO.plan.add.forEach(b => { if (b !== a && edoKey(b) === edoKey(a)) b.on = false; });
+  renderEdo();
+});
+F("btnEdoAdd").onclick = () => {
+  if (!EDO.plan) return;
+  const n = C.edoApply(S.data, EDO.plan, today());
+  persist(); render(); closeSheet(F("ovEdo"));
+  toast(`Добавлено из ЭДО: ${n} ${plural(n, "документ", "документа", "документов")}`);
+};
 })();
 </script>
 </body>

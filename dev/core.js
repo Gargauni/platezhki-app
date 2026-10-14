@@ -246,6 +246,111 @@
   // Новый id документа: upd-7743666731-011026-3215
   const docId = d => [d.type || "doc", digits(d.supplierInn), String(d.number || "").trim()].join("-").replace(/[^A-Za-z0-9_.-]+/g, "_");
 
+  /* ---------- документы из ЭДО (Диадок, «Документ в исходном формате») ---------- */
+  // Байты XML → текст: кодировка из заголовка (обычно windows-1251)
+  function decodeXml(bytes) {
+    const head = String.fromCharCode.apply(null, Array.from(bytes.slice(0, 120)));
+    const enc = (head.match(/encoding=["']([^"']+)["']/i) || [, "utf-8"])[1].toLowerCase();
+    return new TextDecoder(enc === "windows-1251" || enc === "cp1251" ? "windows-1251" : "utf-8").decode(bytes);
+  }
+  const xmlUnq = s => String(s || "").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+  const xmlAttr = (tag, name) => { const m = tag && tag.match(new RegExp("\\s" + name + "=\"([^\"]*)\"")); return m ? xmlUnq(m[1]) : ""; };
+  const xmlTag = (x, name) => (x.match(new RegExp("<" + name + "\\s[^>]*>")) || [""])[0];
+  const xmlBlock = (x, name) => (x.match(new RegExp("<" + name + "[\\s>][\\s\\S]*?</" + name + ">")) || [""])[0];
+  const ruToIso = s => { const m = String(s).match(/(\d{2})\.(\d{2})\.(\d{2,4})/); return m ? (m[3].length === 2 ? "20" + m[3] : m[3]) + "-" + m[2] + "-" + m[1] : ""; };
+  // «Общество с ограниченной ответственностью " НИЖБЕЛ " (ООО " НИЖБЕЛ ")» → «ООО «НИЖБЕЛ»»
+  function edoName(raw) {
+    let s = String(raw || "").replace(/\s*\((?:ООО|АО|ПАО|ЗАО|ОАО)\s[^)]*\)\s*$/i, "").trim();   // «… (ООО "Х")» в конце — сокращённое дубль-название
+    const forms = [[/^Общество с ограниченной ответственностью\s+/i, "ООО "], [/^Публичное акционерное общество\s+/i, "ПАО "], [/^Акционерное общество\s+/i, "АО "], [/^Индивидуальный предприниматель\s+/i, "ИП "]];
+    forms.forEach(([re, to]) => { s = s.replace(re, to); });
+    const m = s.match(/^(ООО|АО|ПАО|ЗАО|ОАО)\s+["«]\s*(.+?)\s*["»]\s*$/);
+    return m ? m[1] + " «" + m[2] + "»" : s;
+  }
+  // Разбор одного XML. Возвращает { ok, reason, doc: {...}, seller: {...} }
+  function parseEdoXml(x, fileName) {
+    const name = String(fileName || "").split(/[\\/]/).pop();
+    if (/^(DP_|ON_EMCHD)/i.test(name)) return { ok: false, reason: "служебный файл ЭДО (извещение, доверенность)" };
+    if (/^ON_TRNACL/i.test(name) || /КНД="111033\d"/.test(x)) return { ok: false, reason: "транспортная накладная — не к оплате" };
+    if (/^ON_NKORSCHF/i.test(name) || /<СвКСчФ[\s>]/.test(x)) return { ok: false, reason: "корректировочный документ — разберите вручную" };
+    const docTag = xmlTag(x, "Документ"), sf = xmlTag(x, "СвСчФакт");
+    if (!sf) return { ok: false, reason: "не УПД и не счёт-фактура" };
+    const prod = xmlBlock(x, "СвПрод"), buyer = xmlBlock(x, "СвПокуп");
+    const ul = xmlTag(prod, "СвЮЛУч"), ip = xmlTag(prod, "СвИП"), fio = xmlTag(prod, "ФИО");
+    const bank = xmlTag(prod, "БанкРекв"), sb = xmlTag(prod, "СвБанк");
+    const tot = xmlTag(x, "ВсегоОпл") || xmlTag(x, "ВсегоОплат"), totBlock = xmlBlock(x, "ВсегоОпл") || xmlBlock(x, "ВсегоОплат");
+    const vatM = totBlock.match(/<СумНал>([\d.]+)<\/СумНал>/), noVat = /<БезНДС>/.test(totBlock);
+    const rates = [...new Set([...x.matchAll(/НалСт="([^"]+)"/g)].map(m => m[1]))];
+    const rate = rates.length === 1 ? (/без/i.test(rates[0]) ? "none" : (rates[0].match(/\d+/) || ["22"])[0]) : (noVat ? "none" : "22");
+    const prd = xmlTag(x, "СвПРД");   // «К платёжно-расчётному документу» — значит, уже оплачено (часто так у предоплаты)
+    const seller = {
+      name: edoName(xmlAttr(ul, "НаимОрг") || (fio ? "ИП " + [xmlAttr(fio, "Фамилия"), xmlAttr(fio, "Имя"), xmlAttr(fio, "Отчество")].join(" ") : "")),
+      inn: xmlAttr(ul, "ИННЮЛ") || xmlAttr(ip, "ИННФЛ"), kpp: xmlAttr(ul, "КПП"),
+      account: xmlAttr(bank, "НомерСчета"), bik: xmlAttr(sb, "БИК"), corr: xmlAttr(sb, "КорСчет"), bank: edoName(xmlAttr(sb, "НаимБанк"))
+    };
+    const doc = {
+      number: xmlAttr(sf, "НомерДок"), date: ruToIso(xmlAttr(sf, "ДатаДок")),
+      due: ruToIso((x.match(/Срок оплаты:\s*(\d{2}\.\d{2}\.\d{2,4})/) || [])[1] || ""),
+      amount: Math.round(Number(xmlAttr(tot, "СтТовУчНалВсего")) * 100) || 0,
+      vat: vatM ? Math.round(Number(vatM[1]) * 100) : 0, vatRate: rate,
+      type: /^СЧФ$/.test(xmlAttr(docTag, "Функция")) ? "invoice" : "upd",
+      buyerInn: xmlAttr(xmlTag(buyer, "СвИП"), "ИННФЛ") || xmlAttr(xmlTag(buyer, "СвЮЛУч"), "ИННЮЛ"),
+      paidRef: prd ? ("п/п № " + xmlAttr(prd, "НомерПРД") + " от " + xmlAttr(prd, "ДатаПРД")).trim() : ""
+    };
+    if (!doc.number || !doc.date || !doc.amount || !seller.inn) return { ok: false, reason: "не удалось прочитать номер, дату, сумму или ИНН продавца" };
+    return { ok: true, doc, seller, file: name };
+  }
+  // План загрузки: что добавить, что пропустить. items — [{ file, text }]
+  function edoPlan(data, items) {
+    const add = [], skip = [], seen = new Map();
+    for (const it of items) {
+      const r = parseEdoXml(it.text, it.file);
+      if (!r.ok){ skip.push({ file: it.file, reason: r.reason }); continue; }
+      const { doc, seller } = r, sup = supByInn(data, seller.inn);
+      const supName = (sup && sup.name) || seller.name, numText = "№ " + doc.number + " от " + ru(doc.date), label = supName + " " + numText;
+      const org = data.orgs.find(o => digits(o.inn) === digits(doc.buyerInn));
+      if (!org){ skip.push({ file: it.file, label, reason: "покупатель (ИНН " + doc.buyerInn + ") — не ваша организация" }); continue; }
+      const key = digits(seller.inn) + "|" + doc.number + "|" + doc.date;
+      if (data.docs.some(d => digits(d.supplierInn) === digits(seller.inn) && String(d.number).trim() === doc.number && d.date === doc.date)){
+        skip.push({ file: it.file, label, reason: "уже есть в трекере" }); continue; }
+      if (seen.has(key)){
+        const prev = seen.get(key);
+        if (prev.doc.amount === doc.amount){ skip.push({ file: it.file, label, reason: "повтор в архиве (повторная отправка)" }); continue; }
+        // разные суммы у одного номера — пусть решит человек; лишний вариант поставщик должен аннулировать
+        const VAR = "несколько вариантов с разными суммами — отметьте верный";
+        prev.variants = (prev.variants || 1) + 1; prev.on = false;
+        add.push({ ...r, org, label, supName, numText, newSup: !sup, on: false, variantOf: key, warn: [VAR] });
+        if (!prev.warn.includes(VAR)) prev.warn.push(VAR);
+        continue;
+      }
+      const warn = [];
+      if (doc.paidRef) warn.push("уже оплачен? в документе ссылка на " + doc.paidRef);
+      if (sup && seller.account && sup.account && seller.account !== sup.account) warn.push("в документе другой р/с (" + seller.account + "), в справочнике " + sup.account + " — справочник не меняю, проверьте");
+      if (!sup && reqProblems({ ...seller, city: "x" }).length) warn.push("реквизиты нового поставщика неполные: " + reqProblems({ ...seller, city: "x" }).join("; "));
+      const e = { ...r, org, label, supName, numText, newSup: !sup, on: !doc.paidRef, warn };
+      seen.set(key, e); add.push(e);
+    }
+    return { add, skip };
+  }
+  // Добавляет отмеченные документы плана в данные. Возвращает число добавленных
+  function edoApply(data, plan, today_) {
+    let n = 0;
+    for (const e of plan.add.filter(x => x.on)) {
+      const { doc, seller } = e;
+      let sup = supByInn(data, seller.inn);
+      if (!sup){
+        sup = { inn: digits(seller.inn), name: seller.name, kpp: digits(seller.kpp), account: digits(seller.account), bik: digits(seller.bik), corr: digits(seller.corr),
+          bank: seller.bank, city: "", subject: "запчасти", docWord: "Счет", contract: "", deferDays: 0, updatedAt: today_, history: [] };
+        data.suppliers.push(sup);
+      }
+      const d = { id: "", orgId: e.org.id, type: doc.type, source: "diadoc", number: doc.number, numberPay: "", date: doc.date, due: doc.due,
+        amount: doc.amount, vatRate: doc.vatRate, vat: doc.vat, supplierInn: sup.inn, supplierName: sup.name,
+        status: "unpaid", payNo: "", exportedAt: "", paidAt: "", createdAt: today_, scan: "ЭДО: " + e.file };
+      d.id = docId(d); if (data.docs.some(x => x.id === d.id)) d.id += "-" + Date.now().toString(36) + n;
+      data.docs.push(d); n++;
+    }
+    return n;
+  }
+
   /* ---------- слияние изменений с двух устройств ---------- */
   // Сравнение без учёта порядка ключей: утилиты и приложение пишут поля в разном порядке
   const canon = v => Array.isArray(v) ? "[" + v.map(canon).join(",") + "]"
@@ -300,6 +405,7 @@
     innOk, accOk, corrOk, reqProblems,
     emptyData, orgById, supByInn, payDays, nextPay, stOf, dueOf, dueSource, openPrepays,
     autoPayNum, payNum, purposeText, pack, exportPlan, markExported,
-    cp1251, build1C, shortName, orgShort, fileName, exportFiles, checkData, docId, merge3
+    cp1251, build1C, shortName, orgShort, fileName, exportFiles, checkData, docId, merge3,
+    decodeXml, edoName, parseEdoXml, edoPlan, edoApply
   };
 });
