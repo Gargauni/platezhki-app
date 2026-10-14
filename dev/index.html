@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <!-- Версия программы: менять при каждой выкладке здесь и в ?v= у core.js ниже — по ней трекер узнаёт, что вышло обновление -->
-<meta name="app-version" content="R5.1">
+<meta name="app-version" content="R5.2">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#092634">
 <meta name="mobile-web-app-capable" content="yes">
@@ -238,6 +238,11 @@ legend{padding:0;margin-bottom:8px}
 .f.wide{grid-column:1/-1}
 .f label{font-size:.8rem;color:var(--muted)}
 .f input,.f select,.f textarea{border:1px solid var(--line);background:var(--sunk);border-radius:8px;padding:8px 10px;width:100%;min-width:0}
+/* Одинаковая высота полей; у полей даты на iPhone свой размер и выравнивание — приводим к остальным */
+.f input:not([type=checkbox]),.f select{height:42px}
+.f input[type=date]{-webkit-appearance:none;appearance:none;display:block;min-width:0;max-width:100%;text-align:left;line-height:1.2}
+.f input[type=date]::-webkit-date-and-time-value{text-align:left}
+.f input[type=checkbox]{width:20px;height:20px;flex:none}
 .f .hint{font-size:.78rem;color:var(--muted)}
 .banner{border:1px solid var(--warn);background:var(--warn-soft);border-radius:8px;padding:10px 12px;font-size:.88rem;display:grid;gap:8px;justify-items:start}
 .banner.bad{border-color:var(--bad);background:var(--bad-soft)}
@@ -345,7 +350,7 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
           <div class="f"><label for="d-amount">Сумма к оплате, ₽</label><input id="d-amount" class="mono" inputmode="decimal" autocomplete="off"></div>
           <div class="f"><label for="d-vatrate">НДС</label><select id="d-vatrate"></select></div>
           <div class="f"><label for="d-vat">в т.ч. НДС, ₽</label><input id="d-vat" class="mono" inputmode="decimal" autocomplete="off"></div>
-          <div class="f"><label for="d-prepay">Предоплата</label><span style="display:flex;gap:8px;align-items:center;min-height:38px"><input type="checkbox" id="d-prepay"><span>платим до получения товара</span></span><span class="hint">Когда придёт УПД — он закроет этот счёт, второй раз не платим</span></div>
+          <div class="f wide"><label for="d-prepay">Предоплата</label><span style="display:flex;gap:8px;align-items:center;min-height:38px"><input type="checkbox" id="d-prepay"><span>платим до получения товара</span></span><span class="hint">Когда придёт УПД — он закроет этот счёт, второй раз не платим</span></div>
         </div>
       </fieldset>
       <fieldset>
@@ -597,7 +602,7 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
 
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="core.js?v=R5.1"></script>
+<script src="core.js?v=R5.2"></script>
 <script>
 (() => {
 "use strict";
