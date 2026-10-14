@@ -1,8 +1,10 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ru">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<!-- Версия программы: менять при каждой выкладке здесь и в ?v= у core.js ниже — по ней трекер узнаёт, что вышло обновление -->
+<meta name="app-version" content="R5">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#092634">
 <meta name="mobile-web-app-capable" content="yes">
@@ -86,7 +88,8 @@ button{cursor:pointer}
 .top .actions .btn{padding:12px 14px;font-size:1rem}
 #btnExport{grid-column:1/-1}
 #btnScan[hidden] + #btnAdd{grid-column:1/-1}
-#btnScan,#btnAdd{border:2px solid var(--accent);color:var(--accent-text,var(--accent));font-weight:600}
+#btnEdo{grid-column:1/-1}
+#btnScan,#btnAdd,#btnEdo{border:2px solid var(--accent);color:var(--accent-text,var(--accent));font-weight:600}
 /* Пометки в «Добавить скан»: срочно — красный, только реквизиты — синий; цвета не зависят от ИП */
 #tagUrgent{border-color:var(--bad);color:var(--bad);font-weight:600}
 #tagUrgent[aria-pressed="true"]{background:var(--bad);border-color:var(--bad);color:var(--surface)}
@@ -97,7 +100,7 @@ button{cursor:pointer}
   .top{grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:16px}
   .top .actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}
   .top .actions .btn{padding:9px 16px;font-size:.95rem}
-  #btnScan{order:1} #btnAdd{order:2} #btnExport{order:3}
+  #btnEdo{order:0} #btnScan{order:1} #btnAdd{order:2} #btnExport{order:3}
 }
 .top .sub{color:var(--muted);font-size:.9rem;margin-top:2px}
 .actions{display:flex;flex-wrap:wrap;gap:8px}
@@ -119,6 +122,9 @@ button{cursor:pointer}
 .filebar.dirty .dot{background:var(--warn)}
 .filebar.dirty{color:var(--ink)}
 
+.update{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;background:var(--accent);color:var(--accent-ink);border-radius:var(--r);padding:10px 14px;font-size:.92rem}
+.update .btn{background:var(--surface);color:var(--ink);border-color:var(--surface);font-weight:600}
+.appver{text-align:center;font-size:.8rem;color:var(--muted)}
 .notice{border:1px solid var(--warn);background:var(--warn-soft);border-radius:var(--r);padding:10px 14px;font-size:.9rem}
 .stats{display:flex;flex-wrap:wrap;gap:8px 28px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 18px}
 .stat{display:grid;gap:2px;min-width:0}
@@ -144,12 +150,26 @@ button{cursor:pointer}
 .payer{border-left:6px solid var(--accent);background:var(--accent-soft);border-radius:8px;padding:10px 14px;display:grid;gap:2px}
 .payer b{font-size:1.05rem}
 .payer span{font-size:.85rem;color:var(--muted)}
-.drop{display:grid;gap:4px;justify-items:start;border:2px dashed var(--line);border-radius:var(--r);padding:18px;cursor:pointer;background:var(--sunk)}
+.drop{position:relative;display:grid;gap:4px;justify-items:start;border:2px dashed var(--line);border-radius:var(--r);padding:18px;cursor:pointer;background:var(--sunk);min-width:0}
 .drop:hover,.drop:focus-within{border-color:var(--accent)}
 .drop b{color:var(--accent-text,var(--accent))}
 .drop span{font-size:.85rem;color:var(--muted)}
-.drop input{font-size:.85rem;max-width:100%}
+/* Системную кнопку выбора файла прячем: на iPhone её подпись с именем файла не сжимается и раздвигает окно. Нажимается вся рамка (label), выбранные файлы — списком ниже */
+.drop input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
 .scanlist{margin:0;padding:0;list-style:none;display:grid;gap:6px}
+/* Список документов из ЭДО */
+.edolist{display:grid;gap:8px}
+.edoitem{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 12px;align-items:start;border:1px solid var(--line);border-radius:8px;padding:10px 12px;cursor:pointer}
+.edoitem input{margin-top:3px;width:18px;height:18px}
+.edoitem:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.ei-main{display:grid;gap:2px;min-width:0;overflow-wrap:anywhere}
+.ei-main small{color:var(--muted);font-size:.8rem}
+.ei-main .mono{font-size:.88rem}
+.ei-main .ei-warn{color:var(--warn)}
+.ei-amt{text-align:right;white-space:nowrap}
+.ei-amt small{display:block;color:var(--muted);font-size:.75rem}
+.edoskip summary{cursor:pointer;color:var(--muted)}
+.edoskip ul{margin-top:8px}
 .scanlist li{display:flex;justify-content:space-between;gap:10px;font-size:.88rem;border:1px solid var(--line);border-radius:8px;padding:7px 10px;min-width:0}
 .scanlist li span:first-child{min-width:0;overflow-wrap:anywhere}
 .scanlist li .st{color:var(--muted);white-space:nowrap;font-family:var(--f-num);font-size:.8rem}
@@ -200,8 +220,9 @@ button{cursor:pointer}
 .step{border-top:2px solid var(--accent);padding-top:10px;display:grid;gap:4px}
 .step span{color:var(--muted);font-size:.88rem}
 
-.overlay{position:fixed;inset:0;background:var(--scrim);display:flex;justify-content:center;align-items:flex-start;padding:16px 12px;overflow-y:auto;z-index:20}
-.sheet{background:var(--surface);color:var(--ink);border-radius:14px;width:100%;max-width:780px;display:grid;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.overlay{position:fixed;inset:0;background:var(--scrim);display:flex;justify-content:center;align-items:flex-start;padding:16px 12px;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;z-index:20}
+.sheet{background:var(--surface);color:var(--ink);border-radius:14px;width:100%;max-width:780px;min-width:0;display:grid;grid-template-columns:minmax(0,1fr);box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.sh-body > *{min-width:0}
 .sh-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line)}
 .sh-body{padding:18px 20px;display:grid;gap:18px}
 .sh-foot{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--line);position:sticky;bottom:0;background:var(--surface);border-radius:0 0 14px 14px}
@@ -243,6 +264,7 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
 </head>
 <body>
 <div class="wrap">
+  <div class="update" id="updBar" hidden role="status"><span>Вышла новая версия трекера <b id="updVer"></b></span><button class="btn sm" type="button" id="btnUpd">Обновить</button></div>
   <header class="top">
     <!-- Карточка открытого ИП в его цвете; нажатие (или шестерёнка) — меню «Настройки» -->
     <div class="orghead" id="orgHead" role="button" tabindex="0" aria-label="Настройки">
@@ -254,6 +276,7 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
       <button class="btn primary" id="btnExport" type="button" disabled>Выгрузить в банк</button>
       <button class="btn" id="btnScan" type="button" hidden>Добавить скан</button>
       <button class="btn" id="btnAdd" type="button" disabled>+ Документ</button>
+      <button class="btn" id="btnEdo" type="button" disabled>Из ЭДО</button>
     </div>
   </header>
   <div class="filebar" id="filebar" hidden></div>
@@ -335,6 +358,7 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
           <div class="f"><label for="r-city">Город банка</label><input id="r-city" placeholder="г. Москва" autocomplete="off"></div>
           <div class="f"><label for="r-subject">Оплата за…</label><input id="r-subject" placeholder="запчасти" autocomplete="off"></div>
           <div class="f"><label for="r-word">Документ в назначении</label><input id="r-word" placeholder="Счет" autocomplete="off"></div>
+          <div class="f"><label for="r-defer">Отсрочка, дней</label><input id="r-defer" class="mono" inputmode="numeric" placeholder="нет" autocomplete="off"><span class="hint">По договору. Срок в самом документе важнее</span></div>
         </div>
         <div id="reqErrs"></div>
       </fieldset>
@@ -370,6 +394,7 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
           <span class="mi-t"><b>Реквизиты</b><small>Мои организации и поставщики</small></span><span class="mi-ch" aria-hidden="true">›</span>
         </button>
       </nav>
+      <p class="appver" id="appVer"></p>
     </div>
   </div>
 </div>
@@ -406,51 +431,69 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
         <button class="tab" role="tab" id="tabSups" aria-selected="false" type="button">Поставщики</button>
       </div>
       <div id="paneOrgs" class="sh-body" style="padding:0">
+        <div class="actions"><button class="btn sm" type="button" id="btnOrgNew">+ Новая организация</button></div>
         <div class="reclist" id="orgList"></div>
-        <form id="orgForm" novalidate>
-          <fieldset>
-            <legend><h3 id="orgFormTitle">Новая организация</h3></legend>
-            <div class="grid">
-              <div class="f wide"><label for="o-name">Название как в платёжке</label><input id="o-name" placeholder="ИП Иванов Иван Иванович" autocomplete="off"></div>
-              <div class="f"><label for="o-inn">ИНН</label><input id="o-inn" class="mono" inputmode="numeric" autocomplete="off"></div>
-              <div class="f"><label for="o-kpp">КПП (у ИП пусто)</label><input id="o-kpp" class="mono" inputmode="numeric" autocomplete="off"></div>
-              <div class="f"><label for="o-acc">Расчётный счёт</label><input id="o-acc" class="mono" inputmode="numeric" autocomplete="off"></div>
-              <div class="f"><label for="o-bik">БИК</label><input id="o-bik" class="mono" inputmode="numeric" autocomplete="off"></div>
-              <div class="f"><label for="o-corr">Корр. счёт</label><input id="o-corr" class="mono" inputmode="numeric" autocomplete="off"></div>
-              <div class="f"><label for="o-bank">Банк</label><input id="o-bank" autocomplete="off"></div>
-              <div class="f"><label for="o-city">Город банка</label><input id="o-city" placeholder="г. Москва" autocomplete="off"></div>
-              <div class="f"><label for="o-next">Следующий № платёжки</label><input id="o-next" class="mono" inputmode="numeric" autocomplete="off"></div>
-              <div class="f wide"><label>Платёжные дни</label><div class="days" id="o-days"></div></div>
-            </div>
-            <div id="orgErrs"></div>
-            <div class="actions"><button class="btn primary sm" type="button" id="btnOrgSave">Сохранить организацию</button><button class="btn sm quiet" type="button" id="btnOrgNew">Новая</button><span class="grow"></span><button class="btn sm danger" type="button" id="btnOrgDel" hidden>Удалить организацию</button></div>
-          </fieldset>
-        </form>
       </div>
       <div id="paneSups" class="sh-body" style="padding:0" hidden>
         <div class="reclist" id="supRecList"></div>
-        <form id="supForm" novalidate hidden>
-          <fieldset>
-            <legend><h3 id="supFormTitle">Поставщик</h3></legend>
-            <div class="grid">
-              <div class="f wide"><label for="s-name">Название как в платёжке</label><input id="s-name" autocomplete="off"></div>
-              <div class="f"><label for="s-inn">ИНН</label><input id="s-inn" class="mono" readonly></div>
-              <div class="f"><label for="s-kpp">КПП</label><input id="s-kpp" class="mono" inputmode="numeric" autocomplete="off"></div>
-              <div class="f"><label for="s-acc">Расчётный счёт</label><input id="s-acc" class="mono" inputmode="numeric" autocomplete="off"></div>
-              <div class="f"><label for="s-bik">БИК</label><input id="s-bik" class="mono" inputmode="numeric" autocomplete="off"></div>
-              <div class="f"><label for="s-corr">Корр. счёт</label><input id="s-corr" class="mono" inputmode="numeric" autocomplete="off"></div>
-              <div class="f"><label for="s-bank">Банк</label><input id="s-bank" autocomplete="off"></div>
-              <div class="f"><label for="s-city">Город банка</label><input id="s-city" autocomplete="off"></div>
-              <div class="f"><label for="s-subject">Оплата за…</label><input id="s-subject" autocomplete="off"></div>
-              <div class="f"><label for="s-word">Документ в назначении</label><input id="s-word" autocomplete="off"></div>
-              <div class="f"><label for="s-contract">Договор в назначении</label><input id="s-contract" autocomplete="off" placeholder="№ 3831/180918-КЛ от 18.09.2018"></div>
-            </div>
-            <div id="supErrs"></div>
-            <div id="supHist"></div>
-            <div class="actions"><button class="btn primary sm" type="button" id="btnSupSave">Сохранить поставщика</button></div>
-          </fieldset>
-        </form>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Карточка открывается отдельным окном поверх списка в «Реквизитах» -->
+<div class="overlay" id="ovOrgEdit" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="orgFormTitle">
+    <div class="sh-head"><h2 id="orgFormTitle">Организация</h2><button class="x" type="button" data-close aria-label="Закрыть">×</button></div>
+    <div class="sh-body">
+      <form id="orgForm" novalidate>
+        <fieldset>
+          <div class="grid">
+            <div class="f wide"><label for="o-name">Название как в платёжке</label><input id="o-name" placeholder="ИП Иванов Иван Иванович" autocomplete="off"></div>
+            <div class="f"><label for="o-inn">ИНН</label><input id="o-inn" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f"><label for="o-kpp">КПП (у ИП пусто)</label><input id="o-kpp" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f"><label for="o-acc">Расчётный счёт</label><input id="o-acc" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f"><label for="o-bik">БИК</label><input id="o-bik" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f"><label for="o-corr">Корр. счёт</label><input id="o-corr" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f"><label for="o-bank">Банк</label><input id="o-bank" autocomplete="off"></div>
+            <div class="f"><label for="o-city">Город банка</label><input id="o-city" placeholder="г. Москва" autocomplete="off"></div>
+            <div class="f"><label for="o-next">Следующий № платёжки</label><input id="o-next" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f wide"><label>Платёжные дни</label><div class="days" id="o-days"></div></div>
+          </div>
+          <div id="orgErrs"></div>
+          <div class="actions"><button class="btn primary sm" type="button" id="btnOrgSave">Сохранить организацию</button><span class="grow"></span><button class="btn sm danger" type="button" id="btnOrgDel" hidden>Удалить организацию</button></div>
+        </fieldset>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Карточка открывается отдельным окном поверх списка в «Реквизитах» -->
+<div class="overlay" id="ovSupEdit" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="supFormTitle">
+    <div class="sh-head"><h2 id="supFormTitle">Поставщик</h2><button class="x" type="button" data-close aria-label="Закрыть">×</button></div>
+    <div class="sh-body">
+      <form id="supForm" novalidate>
+        <fieldset>
+          <div class="grid">
+            <div class="f wide"><label for="s-name">Название как в платёжке</label><input id="s-name" autocomplete="off"></div>
+            <div class="f"><label for="s-inn">ИНН</label><input id="s-inn" class="mono" readonly></div>
+            <div class="f"><label for="s-kpp">КПП</label><input id="s-kpp" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f"><label for="s-acc">Расчётный счёт</label><input id="s-acc" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f"><label for="s-bik">БИК</label><input id="s-bik" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f"><label for="s-corr">Корр. счёт</label><input id="s-corr" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f"><label for="s-bank">Банк</label><input id="s-bank" autocomplete="off"></div>
+            <div class="f"><label for="s-city">Город банка</label><input id="s-city" autocomplete="off"></div>
+            <div class="f"><label for="s-subject">Оплата за…</label><input id="s-subject" autocomplete="off"></div>
+            <div class="f"><label for="s-word">Документ в назначении</label><input id="s-word" autocomplete="off"></div>
+            <div class="f"><label for="s-defer">Отсрочка, дней</label><input id="s-defer" class="mono" inputmode="numeric" placeholder="нет" autocomplete="off"><span class="hint">Срок = дата документа + отсрочка, если в документе срока нет</span></div>
+            <div class="f"><label for="s-contract">Договор в назначении</label><input id="s-contract" autocomplete="off" placeholder="№ 3831/180918-КЛ от 18.09.2018"></div>
+          </div>
+          <div id="supErrs"></div>
+          <div id="supHist"></div>
+          <div class="actions"><button class="btn primary sm" type="button" id="btnSupSave">Сохранить поставщика</button></div>
+        </fieldset>
+      </form>
     </div>
   </div>
 </div>
@@ -474,6 +517,36 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
       <span class="grow"></span>
       <button class="btn" type="button" data-close>Закрыть</button>
       <button class="btn primary" type="button" id="btnDownload">Скачать файл для банка</button>
+    </div>
+  </div>
+</div>
+
+<!-- Документы из ЭДО: архив Диадока разбирается прямо в браузере, без Claude -->
+<div class="overlay" id="ovEdo" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="edoTitle">
+    <div class="sh-head"><h2 id="edoTitle">Добавить из ЭДО</h2><button class="x" type="button" data-close aria-label="Закрыть">×</button></div>
+    <div class="sh-body">
+      <details class="howscan">
+        <summary>Как скачать из Диадока</summary>
+        <ol class="howto">
+          <li>Диадок → «Входящие» → отметьте документы (галочка в шапке списка — все на странице).</li>
+          <li>«Скачать» → <b>«Документ в исходном формате»</b> — получится ZIP-архив.</li>
+          <li>Выберите этот архив здесь. Можно и отдельные XML-файлы.</li>
+        </ol>
+      </details>
+      <label class="drop" for="edoFiles">
+        <b>Выбрать архив или XML</b>
+        <span>Документы попадут в кабинет нужного ИП по ИНН покупателя. Транспортные накладные, служебные файлы, дубли и уже оплаченные — пропускаются.</span>
+        <input type="file" id="edoFiles" multiple accept=".zip,.xml,application/zip,text/xml,application/xml">
+      </label>
+      <div class="pending" id="edoStatus"></div>
+      <div class="edolist" id="edoList"></div>
+      <details class="edoskip" id="edoSkipBox" hidden><summary id="edoSkipSum"></summary><ul class="scanlist" id="edoSkip"></ul></details>
+    </div>
+    <div class="sh-foot">
+      <span class="grow" id="edoTotal"></span>
+      <button class="btn" type="button" data-close>Закрыть</button>
+      <button class="btn primary" type="button" id="btnEdoAdd" disabled>Добавить</button>
     </div>
   </div>
 </div>
@@ -516,7 +589,7 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
 
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="core.js"></script>
+<script src="core.js?v=R5"></script>
 <script>
 (() => {
 "use strict";
@@ -543,7 +616,7 @@ function normalize(d){
   return d;
 }
 function useData(d, name){ S.data = normalize(d); FS.name = name || "tracker.json"; S.org = lsGet("org") || ""; $("#openCard").hidden = true; $("#main").hidden = false;
-  ["btnExport","btnAdd"].forEach(id => F(id).disabled = false); render(); renderFileBar(); }
+  ["btnExport","btnAdd","btnEdo"].forEach(id => F(id).disabled = false); render(); renderFileBar(); }
 async function loadHandle(h){
   if ((await h.queryPermission({ mode: "readwrite" })) !== "granted" && (await h.requestPermission({ mode: "readwrite" })) !== "granted") { toast("Без разрешения на запись файл не открыть"); return; }
   const f = await h.getFile();
@@ -724,6 +797,23 @@ F("btnUpload").onclick = async () => {
   }
 };
 
+/* ---------- обновление: телефон долго держит старую копию страницы, поэтому версию проверяем сами ---------- */
+const APP_VERSION = (document.querySelector('meta[name="app-version"]') || {}).content || "";
+async function checkUpdate(){
+  if (location.protocol === "file:" || !APP_VERSION) return;   // на рабочем ПК (файл) обновляет GitHub Desktop
+  try {
+    const t = await (await fetch(location.pathname + "?check=" + Date.now(), { cache: "no-store" })).text();
+    const m = t.match(/<meta name="app-version" content="([^"]+)"/);
+    if (!m || m[1] === APP_VERSION) return;
+    F("updVer").textContent = m[1]; F("updBar").hidden = false;
+    // новый адрес (?v=…) — браузер не возьмёт копию из кэша
+    F("btnUpd").onclick = () => location.replace(location.pathname + "?v=" + encodeURIComponent(m[1]) + location.hash);
+  } catch {}
+}
+F("appVer").textContent = APP_VERSION ? "Версия " + APP_VERSION : "";
+checkUpdate();
+document.addEventListener("visibilitychange", () => { if (!document.hidden) checkUpdate(); });
+
 document.addEventListener("visibilitychange", () => { if (!document.hidden) ghRefresh(); });
 setInterval(() => { if (GH.on && !document.hidden && !FS.dirty) ghRefresh(); }, 120000);
 // Открыто как файл с диска (рабочий ПК через GitHub Desktop) — главный способ «Открыть tracker.json», вход по ключу — запасной
@@ -784,6 +874,7 @@ const orgs = () => S.data.orgs, sups = () => S.data.suppliers, docs = () => S.da
 const orgById = id => C.orgById(S.data, id);
 const supOf = inn => C.supByInn(S.data, inn);
 const stOf = d => C.stOf(S.data, d);
+const dueOf = d => C.dueOf(S.data, d);
 const payDays = id => C.payDays(S.data, id);
 let toastT;
 function toast(msg){ const t = F("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 2600); }
@@ -889,8 +980,8 @@ function render(){
   const rank = { overdue: 0, soon: 1, unpaid: 2, bank: 3, paid: 4 };
   const g = groupBy(rows, d => (d.orgId || "") + "|" + digits(d.supplierInn) + "|" + (stOf(d) === "paid" ? "p" : stOf(d) === "bank" ? "b" : "o"));
   const list = [...g.values()].map(items => {
-    items.sort((a, b) => rank[stOf(a)] - rank[stOf(b)] || (a.due || "9").localeCompare(b.due || "9") || (a.date || "").localeCompare(b.date || ""));
-    return { items, top: Math.min(...items.map(d => rank[stOf(d)])), due: items.map(d => d.due || "9").sort()[0], paidAt: items.map(d => d.paidAt || "").sort().pop() };
+    items.sort((a, b) => rank[stOf(a)] - rank[stOf(b)] || (dueOf(a) || "9").localeCompare(dueOf(b) || "9") || (a.date || "").localeCompare(b.date || ""));
+    return { items, top: Math.min(...items.map(d => rank[stOf(d)])), due: items.map(d => dueOf(d) || "9").sort()[0], paidAt: items.map(d => d.paidAt || "").sort().pop() };
   }).sort((a, b) => a.top - b.top || (a.top === 4 ? (b.paidAt || "").localeCompare(a.paidAt || "") : a.due.localeCompare(b.due)));
   F("list").innerHTML = list.map(G => groupHTML(G.items)).join("");
 }
@@ -918,7 +1009,7 @@ function groupHTML(items){
   const name = (sup && sup.name) || d0.supplierName || "Поставщик не указан";
   return `<div class="group" data-ids="${esc(items.map(d => d.id).join(","))}">
     <div class="g-head">
-      <div class="g-name">${esc(name)}<small class="mono">ИНН ${esc(digits(d0.supplierInn) || "—")}</small></div>
+      <div class="g-name">${esc(name)}<small class="mono">ИНН ${esc(digits(d0.supplierInn) || "—")}${sup && sup.deferDays ? ` · отсрочка ${sup.deferDays} дн.` : ""}</small></div>
       <span class="g-sum">${rub(sum(items))} ₽</span>
       ${isOpen ? `<div class="g-acts"><button class="btn sm" type="button" data-g="purpose">Назначение</button><button class="btn sm" type="button" data-g="amount">Сумма</button><button class="btn sm" type="button" data-g="paid">Оплачено</button></div>` : ""}
     </div>
@@ -935,9 +1026,11 @@ function rowHTML(d){
     : s === "overdue" ? `<span class="pill p-overdue">Просрочен</span>`
     : s === "soon" ? `<span class="pill p-soon" title="Срок оплаты раньше ближайшего платёжного дня">Срочно</span>`
     : `<span class="pill p-unpaid">К оплате</span>`;
+  // Срок — из документа или посчитанный по отсрочке поставщика (тогда с пометкой «по отсрочке»)
   let due = "без срока";
-  if (d.due){ const n = diff(today(), d.due);
-    due = s === "paid" || s === "bank" ? "срок " + ru(d.due) : n < 0 ? "срок был " + ru(d.due) : n === 0 ? "срок сегодня" : "до " + human(d.due); }
+  const dd = dueOf(d), byDefer = C.dueSource(S.data, d) === "defer";
+  if (dd){ const n = diff(today(), dd);
+    due = (s === "paid" || s === "bank" ? "срок " + ru(dd) : n < 0 ? "срок был " + ru(dd) : n === 0 ? "срок сегодня" : "до " + human(dd)) + (byDefer ? " · по отсрочке" : ""); }
   const vat = d.vatRate && d.vatRate !== "none" ? "НДС " + d.vatRate + "% " + rub(d.vat || 0) : "без НДС";
   const acts = s === "paid" ? `<button class="btn sm quiet" type="button" data-a="unpay">Вернуть</button>`
     : s === "bank" ? `<button class="btn sm" type="button" data-a="paid">Оплачен</button><button class="btn sm quiet" type="button" data-a="unpay">Не прошёл</button>`
@@ -999,12 +1092,12 @@ function openDoc(d){
 }
 function fillReq(s){
   F("r-kpp").value = s.kpp || ""; F("r-acc").value = s.account || ""; F("r-bik").value = s.bik || ""; F("r-corr").value = s.corr || "";
-  F("r-bank").value = s.bank || ""; F("r-city").value = s.city || ""; F("r-subject").value = s.subject ?? ""; F("r-word").value = s.docWord ?? "Счет";
+  F("r-bank").value = s.bank || ""; F("r-city").value = s.city || ""; F("r-subject").value = s.subject ?? ""; F("r-word").value = s.docWord ?? "Счет"; F("r-defer").value = s.deferDays || "";
   if (s.name && !F("d-sname").value) F("d-sname").value = s.name;
 }
 const readReq = () => ({ name: F("d-sname").value.trim(), inn: digits(F("d-sinn").value), kpp: digits(F("r-kpp").value), account: digits(F("r-acc").value),
   bik: digits(F("r-bik").value), corr: digits(F("r-corr").value), bank: F("r-bank").value.trim(), city: F("r-city").value.trim(),
-  subject: F("r-subject").value.trim(), docWord: F("r-word").value.trim() });
+  subject: F("r-subject").value.trim(), docWord: F("r-word").value.trim(), deferDays: Number(digits(F("r-defer").value)) || 0 });
 const readDoc = () => ({ orgId: F("d-org").value, type: F("d-type").value, source: F("d-source").value,
   number: F("d-number").value.trim(), numberPay: S.payTouched ? F("d-paynum").value.trim() : "",
   date: F("d-date").value, due: F("d-due").value, amount: kop(F("d-amount").value), vatRate: F("d-vatrate").value, vat: kop(F("d-vat").value),
@@ -1063,7 +1156,7 @@ function showTab(t){ F("tabOrgs").setAttribute("aria-selected", t === "orgs"); F
 F("tabOrgs").onclick = () => showTab("orgs"); F("tabSups").onclick = () => showTab("sups");
 // Карточка ИП в шапке → меню «Настройки» → пункт открывает своё окно поверх (закрыли — вернулись в меню)
 function openSettings(){ if (!S.data) return; openSheet("ovSet"); }
-function openReq(){ renderReq(); showTab("orgs"); fillOrgForm(orgById(S.org) || orgs()[0] || null); F("supForm").hidden = true; openSheet("ovReq"); }
+function openReq(){ renderReq(); showTab("orgs"); openSheet("ovReq"); }
 F("miReq").onclick = openReq;
 F("miTheme").onclick = () => { renderThemeList(); openSheet("ovTheme"); };
 F("orgHead").addEventListener("click", openSettings);
@@ -1076,10 +1169,11 @@ function renderReq(){
     return `<div class="recitem"><div><b>${esc(s.name || "—")}</b><small>ИНН ${esc(s.inn)} · р/с ${esc(s.account || "—")} · ${esc(s.bank || "")}</small>${p.length ? `<small style="color:var(--bad)">${esc(p.join("; "))}</small>` : ""}</div><button class="btn sm" type="button" data-sup="${esc(s.inn)}">Изменить</button></div>`; }).join("")
     : `<p style="color:var(--muted)">Поставщики появятся сами с первым документом.</p>`;
 }
-F("orgList").addEventListener("click", e => { const b = e.target.closest("[data-org]"); if (b) fillOrgForm(orgById(b.dataset.org)); });
-F("btnOrgNew").onclick = () => fillOrgForm(null);
+// «Изменить» и «+ Новая организация» — карточка отдельным окном поверх списка
+F("orgList").addEventListener("click", e => { const b = e.target.closest("[data-org]"); if (b){ fillOrgForm(orgById(b.dataset.org)); openSheet("ovOrgEdit"); } });
+F("btnOrgNew").onclick = () => { fillOrgForm(null); openSheet("ovOrgEdit"); };
 function fillOrgForm(o){
-  S.orgEdit = o || null; F("orgFormTitle").textContent = o ? "Изменить: " + o.name : "Новая организация";
+  S.orgEdit = o || null; F("orgFormTitle").textContent = o ? o.name : "Новая организация";
   const v = o || {};
   F("o-name").value = v.name || ""; F("o-inn").value = v.inn || ""; F("o-kpp").value = v.kpp || ""; F("o-acc").value = v.account || "";
   F("o-bik").value = v.bik || ""; F("o-corr").value = v.corr || ""; F("o-bank").value = v.bank || ""; F("o-city").value = v.city || ""; F("o-next").value = v.nextNo || "";
@@ -1101,7 +1195,7 @@ F("btnDelOrgGo").onclick = () => {
   S.data.docs = docs().filter(d => d.orgId !== o.id);
   S.data.orgs = orgs().filter(x => x.id !== o.id);
   if (S.org === o.id){ S.org = (orgs()[0] || {}).id || ""; lsSet("org", S.org); }
-  closeSheet(F("ovDelOrg")); fillOrgForm(orgs()[0] || null);
+  closeSheet(F("ovDelOrg")); closeSheet(F("ovOrgEdit"));
   persist(); renderReq(); render(); toast("Организация удалена: " + o.name);
 };
 F("btnOrgSave").onclick = () => {
@@ -1113,22 +1207,24 @@ F("btnOrgSave").onclick = () => {
   const p = C.reqProblems(o); F("orgErrs").innerHTML = p.length ? `<div class="banner">Сохранено, но проверьте: ${esc(p.join("; "))}</div>` : "";
   if (S.orgEdit) Object.assign(S.orgEdit, o); else { const n = { id: "org-" + o.inn, ...o }; orgs().push(n); S.orgEdit = n; }
   persist(); renderReq(); render(); toast("Организация сохранена");
+  if (!p.length) closeSheet(F("ovOrgEdit"));   // есть замечания — окно остаётся, чтобы их было видно
 };
 F("supRecList").addEventListener("click", e => { const b = e.target.closest("[data-sup]"); if (!b) return; const s = supOf(b.dataset.sup); if (!s) return;
-  S.supEdit = s; F("supForm").hidden = false; F("supFormTitle").textContent = s.name || "Поставщик";
+  S.supEdit = s; F("supFormTitle").textContent = s.name || "Поставщик";
   F("s-name").value = s.name || ""; F("s-inn").value = s.inn; F("s-kpp").value = s.kpp || ""; F("s-acc").value = s.account || ""; F("s-bik").value = s.bik || "";
-  F("s-corr").value = s.corr || ""; F("s-bank").value = s.bank || ""; F("s-city").value = s.city || ""; F("s-subject").value = s.subject || ""; F("s-word").value = s.docWord ?? "Счет"; F("s-contract").value = s.contract || "";
+  F("s-corr").value = s.corr || ""; F("s-bank").value = s.bank || ""; F("s-city").value = s.city || ""; F("s-subject").value = s.subject || ""; F("s-word").value = s.docWord ?? "Счет"; F("s-defer").value = s.deferDays || ""; F("s-contract").value = s.contract || "";
   F("supErrs").innerHTML = ""; const h = s.history || [];
   F("supHist").innerHTML = h.length ? `<p style="color:var(--muted);font-size:.82rem">Старые реквизиты: ${h.map(x => esc(x.account) + " (" + esc(x.bank || "") + ", до " + ru(x.until) + ")").join("; ")}</p>` : "";
-  F("supForm").scrollIntoView({ block: "nearest" }); });
+  openSheet("ovSupEdit"); });
 F("btnSupSave").onclick = () => {
   const s = S.supEdit; if (!s) return;
   const n = { name: F("s-name").value.trim(), kpp: digits(F("s-kpp").value), account: digits(F("s-acc").value), bik: digits(F("s-bik").value),
-    corr: digits(F("s-corr").value), bank: F("s-bank").value.trim(), city: F("s-city").value.trim(), subject: F("s-subject").value.trim(), docWord: F("s-word").value.trim(), contract: F("s-contract").value.trim(), updatedAt: today() };
+    corr: digits(F("s-corr").value), bank: F("s-bank").value.trim(), city: F("s-city").value.trim(), subject: F("s-subject").value.trim(), docWord: F("s-word").value.trim(), deferDays: Number(digits(F("s-defer").value)) || 0, contract: F("s-contract").value.trim(), updatedAt: today() };
   if (s.account && n.account !== s.account) n.history = [...(s.history || []), { account: s.account, bik: s.bik || "", bank: s.bank || "", until: today() }].slice(-10);
   Object.assign(s, n);
   const p = C.reqProblems(s); F("supErrs").innerHTML = p.length ? `<div class="banner">Сохранено, но проверьте: ${esc(p.join("; "))}</div>` : "";
   persist(); renderReq(); render(); toast("Поставщик сохранён");
+  if (!p.length) closeSheet(F("ovSupEdit"));
 };
 
 /* ---------- выгрузка ---------- */
@@ -1184,6 +1280,64 @@ F("btnDownload").onclick = () => {
   F("btnDonePaid").onclick = () => { setStatus(ids.map(id => docs().find(d => d.id === id)).filter(Boolean), "paid"); closeSheet(F("ovExp")); };
 };
 F("btnAdd").onclick = () => openDoc(null);
+
+/* ---------- добавить из ЭДО ---------- */
+// ZIP распаковываем библиотекой JSZip — подгружаем при первом использовании
+function loadJSZip(){
+  if (window.JSZip) return Promise.resolve(window.JSZip);
+  return new Promise((res, rej) => { const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+    s.onload = () => res(window.JSZip); s.onerror = () => rej(new Error("Не удалось загрузить распаковщик архива — нужен интернет. Можно выбрать сами XML-файлы."));
+    document.head.appendChild(s); });
+}
+const EDO = { plan: null };
+F("btnEdo").onclick = () => { EDO.plan = null; F("edoFiles").value = ""; F("edoStatus").textContent = ""; renderEdo(); openSheet("ovEdo"); };
+F("edoFiles").addEventListener("change", async e => {
+  const files = [...e.target.files]; if (!files.length) return;
+  F("edoStatus").textContent = "Читаю файлы…"; EDO.plan = null; renderEdo();
+  try {
+    const items = [];
+    for (const f of files){
+      if (/\.zip$/i.test(f.name) || f.type.includes("zip")){
+        const zip = await (await loadJSZip()).loadAsync(f);
+        for (const z of Object.values(zip.files)) if (!z.dir && /\.xml$/i.test(z.name)) items.push({ file: z.name.split("/").pop(), text: C.decodeXml(await z.async("uint8array")) });
+      } else if (/\.xml$/i.test(f.name)) items.push({ file: f.name, text: C.decodeXml(new Uint8Array(await f.arrayBuffer())) });
+    }
+    EDO.plan = C.edoPlan(S.data, items);
+    F("edoStatus").textContent = items.length ? `Прочитано файлов: ${items.length}` : "В выбранных файлах нет XML-документов.";
+  } catch (err) { F("edoStatus").textContent = err.message || "Не удалось прочитать файлы."; }
+  renderEdo();
+});
+const edoKey = a => digits(a.seller.inn) + "|" + a.doc.number + "|" + a.doc.date;
+function renderEdo(){
+  const P = EDO.plan, add = P ? P.add : [], skip = P ? P.skip : [];
+  F("edoList").innerHTML = add.length ? `<h3>Добавить</h3>` + add.map((a, i) => `<label class="edoitem">
+      <input type="checkbox" data-edo="${i}" ${a.on ? "checked" : ""}>
+      <span class="ei-main"><b>${esc(a.supName)}</b><span class="mono">${esc(a.numText)}</span>
+        <small>${esc(C.orgShort(a.org.name))} · ${a.doc.type === "invoice" ? "Счёт-фактура" : "УПД"}${a.doc.due ? " · срок " + ru(a.doc.due) : ""}${a.newSup ? " · новый поставщик" : ""}</small>
+        ${a.warn.map(w => `<small class="ei-warn">${esc(w)}</small>`).join("")}</span>
+      <span class="ei-amt mono">${rub(a.doc.amount)} ₽<small>НДС ${rub(a.doc.vat)}</small></span>
+    </label>`).join("") : (P ? `<p style="color:var(--muted)">Новых документов к оплате нет.</p>` : "");
+  F("edoSkipBox").hidden = !skip.length;
+  F("edoSkipSum").textContent = `Пропущено: ${skip.length}`;
+  F("edoSkip").innerHTML = skip.map(s => `<li><span>${esc(s.label || s.file)}</span><span class="st">${esc(s.reason)}</span></li>`).join("");
+  const on = add.filter(a => a.on);
+  F("edoTotal").textContent = on.length ? `${on.length} ${plural(on.length, "документ", "документа", "документов")} · ${rub(on.reduce((s, a) => s + a.doc.amount, 0))} ₽` : "";
+  F("btnEdoAdd").disabled = !on.length; F("btnEdoAdd").textContent = on.length ? `Добавить (${on.length})` : "Добавить";
+}
+F("edoList").addEventListener("change", e => {
+  const c = e.target.closest("input[data-edo]"); if (!c || !EDO.plan) return;
+  const a = EDO.plan.add[+c.dataset.edo]; a.on = c.checked;
+  // варианты одного документа с разными суммами — можно выбрать только один
+  if (a.on) EDO.plan.add.forEach(b => { if (b !== a && edoKey(b) === edoKey(a)) b.on = false; });
+  renderEdo();
+});
+F("btnEdoAdd").onclick = () => {
+  if (!EDO.plan) return;
+  const n = C.edoApply(S.data, EDO.plan, today());
+  persist(); render(); closeSheet(F("ovEdo"));
+  toast(`Добавлено из ЭДО: ${n} ${plural(n, "документ", "документа", "документов")}`);
+};
 })();
 </script>
 </body>
