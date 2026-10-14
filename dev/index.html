@@ -18,6 +18,7 @@
   --bg:#ECEFF4; --surface:#FFFFFF; --sunk:#F4F6F9; --ink:#151C2A; --muted:#5A6679; --line:#D5DBE4;
   --accent:#2A3BA0; --accent-ink:#FFFFFF; --accent-soft:#E3E6F7;
   --ok:#1B7046; --ok-soft:#DFF1E6; --warn:#955700; --warn-soft:#FAEDD4; --bad:#B0261B; --bad-soft:#FAE3DF;
+  --info:#3D5A99; --info-soft:#E3E8F5;
   --scrim:rgba(14,20,32,.48);
   --f-ui:"Golos Text",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
   --f-num:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
@@ -27,6 +28,7 @@
   --bg:#0F131A; --surface:#171C25; --sunk:#12161D; --ink:#E5E9F0; --muted:#94A0B3; --line:#2A3241;
   --accent:#9AA6FF; --accent-ink:#0F131A; --accent-soft:#222949;
   --ok:#57C78F; --ok-soft:#173326; --warn:#E5A940; --warn-soft:#3A2B12; --bad:#F2786C; --bad-soft:#3C1C19;
+  --info:#9DB0E8; --info-soft:#232C45;
   --scrim:rgba(0,0,0,.6); color-scheme:dark }}
 /* Темы (выбор в шапке). Цвета ИП для каждой темы — в ORG_COLORS в скрипте. */
 :root[data-theme="ocean"]{   /* White #F9F9F9 · Blue #004E72 · Orange #FF6E42 · Navy #092634 */
@@ -53,12 +55,36 @@ button{cursor:pointer}
 .orghead{display:grid;gap:2px;border:1px solid var(--accent);border-left:6px solid var(--accent);background:var(--accent-soft);border-radius:var(--r);padding:12px 16px;cursor:pointer;min-width:0}
 .orghead:hover{box-shadow:inset 0 0 0 1px var(--accent)}
 .orghead:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.oh-more{font-size:.82rem;font-weight:500;color:var(--accent-text,var(--accent));margin-top:4px}
+.orghead{position:relative;padding-right:56px}
+.oh-gear{position:absolute;top:10px;right:10px;width:38px;height:38px;display:grid;place-items:center;border-radius:50%;color:var(--accent-text,var(--accent));background:var(--surface);border:1px solid var(--line)}
+.orghead:hover .oh-gear{border-color:var(--accent)}
+/* Меню настроек и выбор темы */
+.sheet.narrow{max-width:480px}
+.menu{display:grid;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.mi{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--surface);border:0;border-top:1px solid var(--line);padding:14px 16px}
+.mi:first-child{border-top:0}
+.mi:hover{background:var(--sunk)}
+.mi-ic{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent-text,var(--accent));flex:none}
+.mi-t{display:grid;flex:1;min-width:0}
+.mi-t small{color:var(--muted);font-size:.84rem}
+.mi-ch{color:var(--muted);font-size:1.4rem;line-height:1}
+.themes{display:grid;gap:10px}
+.th{display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+.th[aria-checked="true"]{border:2px solid var(--accent);background:var(--accent-soft)}
+.th-sw{display:flex}
+.th-sw i{width:22px;height:22px;border-radius:50%;border:2px solid var(--surface);margin-left:-6px}
+.th-sw i:first-child{margin-left:0}
 /* Кнопки: «Выгрузить в банк» на всю ширину, ниже две равные */
 .top .actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .top .actions .btn{padding:12px 14px;font-size:1rem}
 #btnExport{grid-column:1/-1}
 #btnScan[hidden] + #btnAdd{grid-column:1/-1}
+#btnScan,#btnAdd{border:2px solid var(--accent);color:var(--accent-text,var(--accent));font-weight:600}
+/* Пометки в «Добавить скан»: срочно — красный, только реквизиты — синий; цвета не зависят от ИП */
+#tagUrgent{border-color:var(--bad);color:var(--bad);font-weight:600}
+#tagUrgent[aria-pressed="true"]{background:var(--bad);border-color:var(--bad);color:var(--surface)}
+#tagReq{border-color:var(--info);color:var(--info);font-weight:600}
+#tagReq[aria-pressed="true"]{background:var(--info);border-color:var(--info);color:var(--surface)}
 .top .sub{color:var(--muted);font-size:.9rem;margin-top:2px}
 .actions{display:flex;flex-wrap:wrap;gap:8px}
 .btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 14px;font-weight:500;line-height:1.2}
@@ -201,11 +227,11 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
 <body>
 <div class="wrap">
   <header class="top">
-    <!-- Карточка открытого ИП в его цвете; нажатие — настройки (тема) и реквизиты -->
-    <div class="orghead" id="orgHead" role="button" tabindex="0" aria-label="Настройки и реквизиты">
+    <!-- Карточка открытого ИП в его цвете; нажатие (или шестерёнка) — меню «Настройки» -->
+    <div class="orghead" id="orgHead" role="button" tabindex="0" aria-label="Настройки">
       <h1 id="hTitle">Счета к оплате</h1>
       <p class="sub" id="sub">УПД, счета и накладные — бумажные и из Диадока</p>
-      <span class="oh-more">Настройки и реквизиты ›</span>
+      <span class="oh-gear" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span>
     </div>
     <div class="actions">
       <button class="btn primary" id="btnExport" type="button" disabled>Выгрузить в банк</button>
@@ -312,13 +338,36 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
 <datalist id="supList"></datalist>
 
 <!-- Реквизиты -->
+<!-- Меню «Настройки»: каждый пункт открывает своё окно поверх. Новые разделы добавлять сюда же. -->
+<div class="overlay" id="ovSet" hidden>
+  <div class="sheet narrow" role="dialog" aria-modal="true" aria-labelledby="setTitle">
+    <div class="sh-head"><h2 id="setTitle">Настройки</h2><button class="x" type="button" data-close aria-label="Закрыть">×</button></div>
+    <div class="sh-body">
+      <nav class="menu" aria-label="Разделы настроек">
+        <button type="button" class="mi" id="miTheme">
+          <span class="mi-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.65-.75 1.65-1.69 0-.44-.18-.84-.44-1.13-.29-.29-.44-.65-.44-1.13a1.64 1.64 0 0 1 1.67-1.67h2c3.05 0 5.56-2.5 5.56-5.55C21.96 6.01 17.46 2 12 2z"/></svg></span>
+          <span class="mi-t"><b>Тема оформления</b><small id="miThemeNow"></small></span><span class="mi-ch" aria-hidden="true">›</span>
+        </button>
+        <button type="button" class="mi" id="miReq">
+          <span class="mi-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/></svg></span>
+          <span class="mi-t"><b>Реквизиты</b><small>Мои организации и поставщики</small></span><span class="mi-ch" aria-hidden="true">›</span>
+        </button>
+      </nav>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="ovTheme" hidden>
+  <div class="sheet narrow" role="dialog" aria-modal="true" aria-labelledby="themeTitle">
+    <div class="sh-head"><h2 id="themeTitle">Тема оформления</h2><button class="x" type="button" data-close aria-label="Закрыть">×</button></div>
+    <div class="sh-body"><div class="themes" id="themeList" role="radiogroup" aria-labelledby="themeTitle"></div></div>
+  </div>
+</div>
+
 <div class="overlay" id="ovReq" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="reqTitle">
-    <div class="sh-head"><h2 id="reqTitle">Настройки и реквизиты</h2><button class="x" type="button" data-close aria-label="Закрыть">×</button></div>
+    <div class="sh-head"><h2 id="reqTitle">Реквизиты</h2><button class="x" type="button" data-close aria-label="Закрыть">×</button></div>
     <div class="sh-body">
-      <div class="grid">
-        <div class="f"><label for="themeSel">Тема оформления</label><select class="themesel" id="themeSel"><option value="classic">Классика</option><option value="ocean">Океан</option></select></div>
-      </div>
       <div class="tabs" role="tablist">
         <button class="tab" role="tab" id="tabOrgs" aria-selected="true" type="button">Мои организации</button>
         <button class="tab" role="tab" id="tabSups" aria-selected="false" type="button">Поставщики</button>
@@ -728,8 +777,17 @@ const theme = () => ORG_COLORS[S.theme] ? S.theme : "classic";
 const orgColor = id => { const set = ORG_COLORS[theme()], i = Math.max(0, orgs().findIndex(o => o.id === id)); return set[i % set.length][darkMQ.matches ? "dark" : "light"]; };
 darkMQ.addEventListener("change", () => render());
 S.theme = lsGet("theme") || "classic";
-function applyTheme(){ if (theme() === "classic") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme = theme(); F("themeSel").value = theme(); }
-F("themeSel").addEventListener("change", e => { S.theme = e.target.value; lsSet("theme", S.theme); applyTheme(); render(); });
+const THEME_NAMES = { classic: "Классика", ocean: "Океан" };
+function applyTheme(){ if (theme() === "classic") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme = theme();
+  F("miThemeNow").textContent = THEME_NAMES[theme()]; renderThemeList(); }
+// Варианты темы с образцами цветов ИП: первые два — нынешние Н.В. и В.И.
+function renderThemeList(){
+  const mode = darkMQ.matches ? "dark" : "light";
+  F("themeList").innerHTML = Object.keys(ORG_COLORS).map(k => `<button type="button" class="th" role="radio" aria-checked="${theme() === k}" data-theme-id="${k}">
+    <span class="th-sw" aria-hidden="true">${ORG_COLORS[k].map(c => `<i style="background:${c[mode][0]}"></i>`).join("")}</span>
+    <b>${THEME_NAMES[k]}</b></button>`).join("");
+}
+F("themeList").addEventListener("click", e => { const b = e.target.closest("[data-theme-id]"); if (!b) return; S.theme = b.dataset.themeId; lsSet("theme", S.theme); applyTheme(); render(); });
 applyTheme();
 // Документ без orgId относится к первой организации (старые данные)
 const orgOf = d => d.orgId || (orgs()[0] || {}).id || "";
@@ -953,8 +1011,11 @@ F("btnDel").addEventListener("click", () => {
 F("o-days").innerHTML = [1,2,3,4,5,6].map(d => `<label><input type="checkbox" id="o-day-${d}" value="${d}">${WD[d]}</label>`).join("");
 function showTab(t){ F("tabOrgs").setAttribute("aria-selected", t === "orgs"); F("tabSups").setAttribute("aria-selected", t === "sups"); F("paneOrgs").hidden = t !== "orgs"; F("paneSups").hidden = t !== "sups"; }
 F("tabOrgs").onclick = () => showTab("orgs"); F("tabSups").onclick = () => showTab("sups");
-// Настройки и реквизиты — по нажатию на карточку ИП в шапке; открываем реквизиты именно этого ИП
-function openSettings(){ if (!S.data) return; renderReq(); showTab("orgs"); fillOrgForm(orgById(S.org) || orgs()[0] || null); F("supForm").hidden = true; openSheet("ovReq"); }
+// Карточка ИП в шапке → меню «Настройки» → пункт открывает своё окно поверх (закрыли — вернулись в меню)
+function openSettings(){ if (!S.data) return; openSheet("ovSet"); }
+function openReq(){ renderReq(); showTab("orgs"); fillOrgForm(orgById(S.org) || orgs()[0] || null); F("supForm").hidden = true; openSheet("ovReq"); }
+F("miReq").onclick = openReq;
+F("miTheme").onclick = () => { renderThemeList(); openSheet("ovTheme"); };
 F("orgHead").addEventListener("click", openSettings);
 F("orgHead").addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " "){ e.preventDefault(); openSettings(); } });
 function renderReq(){
