@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <!-- Версия программы: менять при каждой выкладке здесь и в ?v= у core.js ниже — по ней трекер узнаёт, что вышло обновление -->
-<meta name="app-version" content="R5">
+<meta name="app-version" content="R6">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#092634">
 <meta name="mobile-web-app-capable" content="yes">
@@ -89,7 +89,8 @@ button{cursor:pointer}
 #btnExport{grid-column:1/-1}
 #btnScan[hidden] + #btnAdd{grid-column:1/-1}
 #btnEdo{grid-column:1/-1}
-#btnScan,#btnAdd,#btnEdo{border:2px solid var(--accent);color:var(--accent-text,var(--accent));font-weight:600}
+/* Второстепенная кнопка действия — единый стиль везде: жирная рамка и текст в цвете открытого ИП */
+.btn.act{border:2px solid var(--accent);color:var(--accent-text,var(--accent));font-weight:600;padding:12px 14px;font-size:1rem}
 /* Пометки в «Добавить скан»: срочно — красный, только реквизиты — синий; цвета не зависят от ИП */
 #tagUrgent{border-color:var(--bad);color:var(--bad);font-weight:600}
 #tagUrgent[aria-pressed="true"]{background:var(--bad);border-color:var(--bad);color:var(--surface)}
@@ -124,6 +125,9 @@ button{cursor:pointer}
 
 .update{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;background:var(--accent);color:var(--accent-ink);border-radius:var(--r);padding:10px 14px;font-size:.92rem}
 .update .btn{background:var(--surface);color:var(--ink);border-color:var(--surface);font-weight:600}
+.logout{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;margin-top:14px;padding:14px 16px;border:2px solid var(--bad);border-radius:var(--r);background:var(--bad-soft);color:var(--bad);font-weight:600;font-size:1rem;text-align:center}
+.logout:hover{filter:brightness(1.05)}
+.logout.armed{background:var(--bad);color:var(--surface)}
 .appver{text-align:center;font-size:.8rem;color:var(--muted)}
 .notice{border:1px solid var(--warn);background:var(--warn-soft);border-radius:var(--r);padding:10px 14px;font-size:.9rem}
 .stats{display:flex;flex-wrap:wrap;gap:8px 28px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 18px}
@@ -209,6 +213,11 @@ button{cursor:pointer}
 .p-soon{background:var(--warn-soft);color:var(--warn)}
 .p-overdue{background:var(--bad-soft);color:var(--bad)}
 .p-bank{background:var(--sunk);color:var(--ink);border:1px dashed var(--muted)}
+/* «Нужна проверка» — красная строка в группе своего поставщика */
+.p-review{background:var(--bad);color:var(--surface)}
+.row.review,.row.review:hover{background:var(--bad-soft);box-shadow:inset 4px 0 0 var(--bad)}
+.r-doc .r-q{color:var(--bad);font-weight:600;font-size:.85rem;margin-top:2px}
+.g-review{padding:8px 16px;border-bottom:1px solid var(--line);font-size:.85rem;color:var(--bad);font-weight:500}
 .stamp{display:inline-block;border:2px solid var(--ok);color:var(--ok);border-radius:4px;padding:1px 8px;font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;transform:rotate(-4deg);white-space:nowrap}
 @media (max-width:760px){
   .row{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"doc amt" "due st" "act act"}
@@ -235,6 +244,11 @@ legend{padding:0;margin-bottom:8px}
 .f.wide{grid-column:1/-1}
 .f label{font-size:.8rem;color:var(--muted)}
 .f input,.f select,.f textarea{border:1px solid var(--line);background:var(--sunk);border-radius:8px;padding:8px 10px;width:100%;min-width:0}
+/* Одинаковая высота полей; у полей даты на iPhone свой размер и выравнивание — приводим к остальным */
+.f input:not([type=checkbox]),.f select{height:42px}
+.f input[type=date]{-webkit-appearance:none;appearance:none;display:block;min-width:0;max-width:100%;text-align:left;line-height:1.2}
+.f input[type=date]::-webkit-date-and-time-value{text-align:left}
+.f input[type=checkbox]{width:20px;height:20px;flex:none}
 .f .hint{font-size:.78rem;color:var(--muted)}
 .banner{border:1px solid var(--warn);background:var(--warn-soft);border-radius:8px;padding:10px 12px;font-size:.88rem;display:grid;gap:8px;justify-items:start}
 .banner.bad{border-color:var(--bad);background:var(--bad-soft)}
@@ -258,6 +272,13 @@ legend{padding:0;margin-bottom:8px}
 .po-one .t{font-size:.8rem;color:var(--muted)}
 .total{display:flex;flex-wrap:wrap;gap:6px 16px;justify-content:space-between;align-items:baseline;font-size:.95rem}
 ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
+/* Файлы для банка после выгрузки — у каждого свои кнопки */
+.filelist{margin:0 0 6px;padding:0;list-style:none;display:grid;gap:8px}
+.filelist li{display:grid;gap:10px;border:1px solid var(--line);border-radius:8px;padding:12px}
+.fl-name{display:grid;gap:2px;min-width:0}
+.fl-name small{color:var(--muted);font-size:.78rem;overflow-wrap:anywhere}
+.fl-acts{display:grid;gap:8px}
+#btnDonePaid{width:100%;padding:12px 14px;font-size:1rem}   /* кнопки одна под другой, на всю ширину */
 .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:.9rem;z-index:40;max-width:calc(100% - 32px)}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(12px);opacity:.6}}}
 </style>
@@ -274,9 +295,9 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
     </div>
     <div class="actions">
       <button class="btn primary" id="btnExport" type="button" disabled>Выгрузить в банк</button>
-      <button class="btn" id="btnScan" type="button" hidden>Добавить скан</button>
-      <button class="btn" id="btnAdd" type="button" disabled>+ Документ</button>
-      <button class="btn" id="btnEdo" type="button" disabled>Из ЭДО</button>
+      <button class="btn act" id="btnScan" type="button" hidden>Добавить скан</button>
+      <button class="btn act" id="btnAdd" type="button" disabled>+ Документ</button>
+      <button class="btn act" id="btnEdo" type="button" disabled>Из ЭДО</button>
     </div>
   </header>
   <div class="filebar" id="filebar" hidden></div>
@@ -342,7 +363,7 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
           <div class="f"><label for="d-amount">Сумма к оплате, ₽</label><input id="d-amount" class="mono" inputmode="decimal" autocomplete="off"></div>
           <div class="f"><label for="d-vatrate">НДС</label><select id="d-vatrate"></select></div>
           <div class="f"><label for="d-vat">в т.ч. НДС, ₽</label><input id="d-vat" class="mono" inputmode="decimal" autocomplete="off"></div>
-          <div class="f"><label for="d-prepay">Предоплата</label><span style="display:flex;gap:8px;align-items:center;min-height:38px"><input type="checkbox" id="d-prepay"><span>платим до получения товара</span></span><span class="hint">Когда придёт УПД — он закроет этот счёт, второй раз не платим</span></div>
+          <div class="f wide"><label for="d-prepay">Предоплата</label><span style="display:flex;gap:8px;align-items:center;min-height:38px"><input type="checkbox" id="d-prepay"><span>платим до получения товара</span></span><span class="hint">Когда придёт УПД — он закроет этот счёт, второй раз не платим</span></div>
         </div>
       </fieldset>
       <fieldset>
@@ -394,6 +415,11 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
           <span class="mi-t"><b>Реквизиты</b><small>Мои организации и поставщики</small></span><span class="mi-ch" aria-hidden="true">›</span>
         </button>
       </nav>
+      <!-- Выход — отдельно от разделов, красным; срабатывает со второго нажатия -->
+      <button type="button" class="logout" id="btnLogout" hidden>
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+        <span id="logoutText">Выйти</span>
+      </button>
       <p class="appver" id="appVer"></p>
     </div>
   </div>
@@ -589,7 +615,7 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
 
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="core.js?v=R5"></script>
+<script src="core.js?v=R6"></script>
 <script>
 (() => {
 "use strict";
@@ -715,6 +741,17 @@ function ghRefresh(quiet){
     renderFileBar();
   }));
 }
+// Первое нажатие — предупреждение, второе (в течение 4 секунд) — выход
+let logoutArmed = 0;
+F("btnLogout").addEventListener("click", () => {
+  if (Date.now() - logoutArmed > 4000){
+    logoutArmed = Date.now(); F("btnLogout").classList.add("armed");
+    F("logoutText").textContent = "Нажмите ещё раз, чтобы выйти";
+    setTimeout(() => { if (Date.now() - logoutArmed >= 4000){ F("btnLogout").classList.remove("armed"); F("logoutText").textContent = "Выйти"; } }, 4100);
+    return;
+  }
+  ghLogout();
+});
 function ghLogout(){
   if (FS.dirty && !confirm("Есть несохранённые изменения. Всё равно выйти?")) return;
   try { localStorage.removeItem("platezhki.gh.token"); } catch {}
@@ -850,9 +887,8 @@ function renderFileBar(){
     const draft = GH.branch !== "main";
     b.classList.toggle("dirty", !!GH.err || FS.dirty);
     b.innerHTML = `<span><span class="dot"></span>Данные: GitHub${draft ? " · <b>ЧЕРНОВИК, тестовая копия (ветка " + esc(GH.branch) + ")</b>" : ""} · ${GH.busy ? "сохраняю…" : FS.dirty ? "сохраню через секунду…" : FS.savedAt ? "сохранено в " + FS.savedAt : "загружено"}</span>`
-      + (GH.err ? `<span style="color:var(--bad)">${esc(GH.err)}</span><button class="btn sm" type="button" id="btnGhRetry">Повторить</button>` : "")
-      + `<button class="btn sm quiet" type="button" id="btnGhOut">Выйти</button>`;
-    F("btnGhOut").onclick = ghLogout;
+      + (GH.err ? `<span style="color:var(--bad)">${esc(GH.err)}</span><button class="btn sm" type="button" id="btnGhRetry">Повторить</button>` : "");
+    F("btnLogout").hidden = false;   // выход — в «Настройках»
     const rb = F("btnGhRetry"); if (rb) rb.onclick = () => { GH.err = ""; if (FS.dirty) FS.chain = FS.chain.then(ghSave); else ghRefresh(); renderFileBar(); };
     return;
   }
@@ -943,7 +979,9 @@ function render(){
   const org = orgById(S.org);
   const base = docs().filter(d => orgOf(d) === S.org);
   const open = base.filter(d => d.status !== "paid");
-  const unpaid = open.filter(d => d.status !== "bank");
+  const pending = open.filter(d => d.status !== "bank");
+  const review = pending.filter(d => C.inReview(d));
+  const unpaid = pending.filter(d => !C.inReview(d));   // к оплате — без документов «на проверке»
   const overdue = unpaid.filter(d => stOf(d) === "overdue");
   const bank = open.filter(d => d.status === "bank");
   const days = payDays(S.org);
@@ -959,17 +997,20 @@ function render(){
   F("stats").innerHTML = `
     ${tabs ? "" : `<div class="stat"><span class="k">К оплате</span><span class="v">${rub(sum(unpaid))} ₽<small>${unpaid.length} ${plural(unpaid.length, "документ", "документа", "документов")}</small></span></div>
     <div class="stat pay"><span class="k">Платёжный день</span><span class="v">${esc(np === today() ? "сегодня" : human(np))}<small>${orders} ${plural(orders, "платёжка", "платёжки", "платёжек")}</small></span></div>`}
+    ${review.length ? `<div class="stat bad"><span class="k">Нужна проверка</span><span class="v">${rub(sum(review))} ₽<small>${review.length} шт. · в выгрузку не попадут</small></span></div>` : ""}
     ${overdue.length ? `<div class="stat bad"><span class="k">Просрочено</span><span class="v">${rub(sum(overdue))} ₽<small>${overdue.length} шт.</small></span></div>` : ""}
     ${bank.length ? `<div class="stat"><span class="k">Выгружены в банк</span><span class="v">${rub(sum(bank))} ₽<small>${bank.length} шт.</small></span></div>` : ""}`;
   F("stats").hidden = !F("stats").textContent.trim();
-  const counts = { open: open.length, overdue: overdue.length, bank: bank.length, paid: base.length - open.length, all: base.length };
-  F("chips").innerHTML = [["open","Не оплачены"],["overdue","Просрочены"],["bank","В банке"],["paid","Оплачены"],["all","Все"]]
+  const counts = { open: open.length, review: review.length, overdue: overdue.length, bank: bank.length, paid: base.length - open.length, all: base.length };
+  if (S.st === "review" && !review.length) S.st = "open";
+  F("chips").innerHTML = [["open","Не оплачены"], ...(review.length ? [["review","На проверке"]] : []), ["overdue","Просрочены"],["bank","В банке"],["paid","Оплачены"],["all","Все"]]
     .map(([k, l]) => `<button type="button" class="chip" data-st="${k}" aria-pressed="${S.st === k}">${l}<b>${counts[k]}</b></button>`).join("");
 
   const q = S.q.trim().toLowerCase();
   const rows = base.filter(d => { const s = stOf(d);
     if (S.st === "open" && s === "paid") return false;
     if (S.st === "overdue" && s !== "overdue") return false;
+    if (S.st === "review" && s !== "review") return false;
     if (S.st === "bank" && s !== "bank") return false;
     if (S.st === "paid" && s !== "paid") return false;
     if (q && ![d.supplierName, d.supplierInn, d.number, C.payNum(d)].join(" ").toLowerCase().includes(q)) return false;
@@ -977,7 +1018,7 @@ function render(){
   F("empty").hidden = docs().length > 0;
   if (!docs().length){ F("list").innerHTML = ""; return; }
   if (!rows.length){ F("list").innerHTML = `<p style="color:var(--muted);padding:8px 2px">${S.st === "open" ? "Всё оплачено." : "Ничего не найдено."}</p>`; return; }
-  const rank = { overdue: 0, soon: 1, unpaid: 2, bank: 3, paid: 4 };
+  const rank = { review: -1, overdue: 0, soon: 1, unpaid: 2, bank: 3, paid: 4 };
   const g = groupBy(rows, d => (d.orgId || "") + "|" + digits(d.supplierInn) + "|" + (stOf(d) === "paid" ? "p" : stOf(d) === "bank" ? "b" : "o"));
   const list = [...g.values()].map(items => {
     items.sort((a, b) => rank[stOf(a)] - rank[stOf(b)] || (dueOf(a) || "9").localeCompare(dueOf(b) || "9") || (a.date || "").localeCompare(b.date || ""));
@@ -989,7 +1030,8 @@ function render(){
 function renderOrgTabs(){
   const nav = F("orgTabs"); nav.hidden = orgs().length < 2; if (nav.hidden) return;
   nav.innerHTML = orgs().map(o => {
-    const unpaid = docs().filter(d => orgOf(d) === o.id && d.status === "unpaid");
+    const pending = docs().filter(d => orgOf(d) === o.id && d.status === "unpaid");
+    const rev = pending.filter(d => C.inReview(d)).length, unpaid = pending.filter(d => !C.inReview(d));
     const over = unpaid.filter(d => stOf(d) === "overdue").length, soon = unpaid.filter(d => stOf(d) === "soon").length;
     const np = C.nextPay(payDays(o.id));
     const n = C.exportPlan(S.data, o.id).orders.length;
@@ -997,31 +1039,35 @@ function renderOrgTabs(){
     return `<button type="button" class="orgtab" data-org="${esc(o.id)}" aria-pressed="${S.org === o.id}" style="--oc:${c};--ocs:${s}">
       <span class="on"><i aria-hidden="true"></i>${esc(C.orgShort(o.name))}</span>
       <span class="amt">${rub(sum(unpaid))} ₽</span>
-      <span class="meta">${unpaid.length ? esc(np === today() ? "сегодня" : human(np)) + " · " + n + " " + plural(n, "платёжка", "платёжки", "платёжек") : "долгов нет"}${over ? ` · <b>просрочено ${over}</b>` : soon ? ` · <b>срочно ${soon}</b>` : ""}</span>
+      <span class="meta">${unpaid.length ? esc(np === today() ? "сегодня" : human(np)) + " · " + n + " " + plural(n, "платёжка", "платёжки", "платёжек") : "долгов нет"}${rev ? ` · <b>проверка ${rev}</b>` : over ? ` · <b>просрочено ${over}</b>` : soon ? ` · <b>срочно ${soon}</b>` : ""}</span>
     </button>`; }).join("");
 }
 F("orgTabs").addEventListener("click", e => { const b = e.target.closest("[data-org]"); if (!b || b.dataset.org === S.org) return; S.org = b.dataset.org; lsSet("org", S.org); render(); });
 function groupHTML(items){
   const d0 = items[0], sup = supOf(d0.supplierInn), state = stOf(d0);
   const isOpen = state !== "paid" && state !== "bank";
-  const chunks = isOpen ? C.pack(items, sup) : [];
+  // Документы «на проверке» стоят в группе поставщика, но в платёжку, сумму и «Оплачено» не входят
+  const rev = isOpen ? items.filter(d => C.inReview(d)) : [], pay = isOpen ? items.filter(d => !C.inReview(d)) : items;
+  const chunks = isOpen && pay.length ? C.pack(pay, sup) : [];
   const probs = sup ? C.reqProblems(sup) : ["нет банковских реквизитов — добавьте их в «Реквизиты»"];
   const name = (sup && sup.name) || d0.supplierName || "Поставщик не указан";
-  return `<div class="group" data-ids="${esc(items.map(d => d.id).join(","))}">
+  return `<div class="group" data-ids="${esc(pay.map(d => d.id).join(","))}">
     <div class="g-head">
       <div class="g-name">${esc(name)}<small class="mono">ИНН ${esc(digits(d0.supplierInn) || "—")}${sup && sup.deferDays ? ` · отсрочка ${sup.deferDays} дн.` : ""}</small></div>
-      <span class="g-sum">${rub(sum(items))} ₽</span>
-      ${isOpen ? `<div class="g-acts"><button class="btn sm" type="button" data-g="purpose">Назначение</button><button class="btn sm" type="button" data-g="amount">Сумма</button><button class="btn sm" type="button" data-g="paid">Оплачено</button></div>` : ""}
+      <span class="g-sum">${rub(sum(pay.length ? pay : items))} ₽</span>
+      ${isOpen && pay.length ? `<div class="g-acts"><button class="btn sm" type="button" data-g="purpose">Назначение</button><button class="btn sm" type="button" data-g="amount">Сумма</button><button class="btn sm" type="button" data-g="paid">Оплачено</button></div>` : ""}
     </div>
-    ${isOpen ? `<div class="g-purpose">${chunks.length > 1 ? `Не влезает в 210 символов — будет ${chunks.length} платёжки:` : `${items.length} ${plural(items.length, "документ", "документа", "документов")} → 1 платёжка:`}
+    ${rev.length ? `<div class="g-review">Нужна проверка: ${rev.length} ${plural(rev.length, "документ", "документа", "документов")} на ${rub(sum(rev))} ₽ — в платёжку не входят, пока не нажмёте «Проверено»</div>` : ""}
+    ${chunks.length ? `<div class="g-purpose">${chunks.length > 1 ? `Не влезает в 210 символов — будет ${chunks.length} платёжки:` : `${pay.length} ${plural(pay.length, "документ", "документа", "документов")} → 1 платёжка:`}
       ${chunks.map(c => `<br><code>${esc(C.purposeText(c, sup))}</code>`).join("")}</div>` : ""}
-    ${isOpen && probs.length ? `<div class="g-warn">Реквизиты поставщика: ${esc(probs.join("; "))}. Без них в банк не выгрузится.</div>` : ""}
+    ${isOpen && pay.length && probs.length ? `<div class="g-warn">Реквизиты поставщика: ${esc(probs.join("; "))}. Без них в банк не выгрузится.</div>` : ""}
     ${items.map(rowHTML).join("")}
   </div>`;
 }
 function rowHTML(d){
   const s = stOf(d);
-  const pill = s === "paid" ? `<span class="stamp">Оплачен${d.paidAt ? " " + ruShort(d.paidAt) : ""}</span>`
+  const pill = s === "review" ? `<span class="pill p-review">Нужна проверка</span>`
+    : s === "paid" ? `<span class="stamp">Оплачен${d.paidAt ? " " + ruShort(d.paidAt) : ""}</span>`
     : s === "bank" ? `<span class="pill p-bank">В банке${d.payNo ? " · п/п " + esc(d.payNo) : ""}</span>`
     : s === "overdue" ? `<span class="pill p-overdue">Просрочен</span>`
     : s === "soon" ? `<span class="pill p-soon" title="Срок оплаты раньше ближайшего платёжного дня">Срочно</span>`
@@ -1034,9 +1080,10 @@ function rowHTML(d){
   const vat = d.vatRate && d.vatRate !== "none" ? "НДС " + d.vatRate + "% " + rub(d.vat || 0) : "без НДС";
   const acts = s === "paid" ? `<button class="btn sm quiet" type="button" data-a="unpay">Вернуть</button>`
     : s === "bank" ? `<button class="btn sm" type="button" data-a="paid">Оплачен</button><button class="btn sm quiet" type="button" data-a="unpay">Не прошёл</button>`
+    : s === "review" ? `<button class="btn sm" type="button" data-a="reviewed">Проверено</button>`
     : `<button class="btn sm" type="button" data-a="paid">Оплачен</button>`;
-  return `<article class="row" data-id="${esc(d.id)}" tabindex="0">
-    <div class="r-doc">${esc(TYPES[d.type] || "Документ")} <span class="ns">№</span> ${esc(d.number || "—")}${d.date ? " от " + ru(d.date) : ""}<small>${esc(SOURCES[d.source] || "")}${d.prepay ? " · <b>предоплата</b>" + (s === "paid" && !d.closedBy ? ", ждём УПД" : "") : ""}${d.closesPrepay ? " · закрывает предоплату" : ""}${C.payNum(d) !== String(d.number || "").trim() ? " · в назначении " + esc(C.payNum(d)) : ""}</small></div>
+  return `<article class="row${s === "review" ? " review" : ""}" data-id="${esc(d.id)}" tabindex="0">
+    <div class="r-doc">${esc(TYPES[d.type] || "Документ")} <span class="ns">№</span> ${esc(d.number || "—")}${d.date ? " от " + ru(d.date) : ""}<small>${esc(SOURCES[d.source] || "")}${d.prepay ? " · <b>предоплата</b>" + (s === "paid" && !d.closedBy ? ", ждём УПД" : "") : ""}${d.closesPrepay ? " · закрывает предоплату" : ""}${C.payNum(d) !== String(d.number || "").trim() ? " · в назначении " + esc(C.payNum(d)) : ""}</small>${s === "review" ? `<small class="r-q">Проверить: ${esc(d.review)}</small>` : ""}</div>
     <div class="r-due">${esc(due)}</div>
     <div class="r-amt">${rub(d.amount || 0)} ₽<small>${esc(vat)}</small></div>
     <div class="r-st">${pill}</div>
@@ -1056,10 +1103,17 @@ F("list").addEventListener("click", e => {
   const row = e.target.closest(".row"); if (!row) return;
   const d = docs().find(x => x.id === row.dataset.id); if (!d) return;
   const a = e.target.closest("[data-a]");
+  if (a && a.dataset.a === "reviewed") return reviewed(d);
   if (a) return setStatus([d], a.dataset.a === "paid" ? "paid" : "unpaid");
   openDoc(d);
 });
 F("list").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.classList.contains("row")){ const d = docs().find(x => x.id === e.target.dataset.id); if (d) openDoc(d); } });
+// «Проверено» — снять пометку: документ становится обычным «К оплате» и попадает в платёжку
+function reviewed(d){
+  d.reviewed = (d.review ? d.review + " · " : "") + "проверено " + ru(today());
+  delete d.review;
+  persist(); render(); toast("Проверено — документ в плане оплаты");
+}
 function setStatus(items, status){
   for (const d of items){ d.status = status;
     if (status === "paid") d.paidAt = today();
@@ -1263,20 +1317,34 @@ function renderExport(){
 F("btnDownload").onclick = () => {
   const P = plan(); if (!P.orders.length) return;
   const dateISO = F("e-date").value || today();
-  const files = C.exportFiles(P.org, P.orders, dateISO);
-  // Небольшая пауза между файлами, иначе браузер может скачать не все
-  files.forEach((f, i) => setTimeout(() => downloadBlob(new Blob([C.cp1251(f.text)], { type: "text/plain" }), f.name), i * 400));
+  const files = C.exportFiles(P.org, P.orders, dateISO).map(f => ({ ...f, blob: new Blob([C.cp1251(f.text)], { type: "text/plain" }) }));
+  // Телефон скачивает автоматически только первый файл (остальные браузер блокирует) — там даём кнопки у каждого файла.
+  // На ПК — как раньше: все файлы сразу, с небольшой паузой, иначе браузер может скачать не все.
+  const phone = matchMedia("(pointer:coarse)").matches;
+  if (!phone) files.forEach((f, i) => setTimeout(() => downloadBlob(f.blob, f.name), i * 400));
   C.markExported(S.data, P, dateISO); persist(); render();
   const ids = P.orders.flatMap(o => o.docs.map(d => d.id));
+  let canShare = false;
+  try { canShare = !!(navigator.canShare && navigator.canShare({ files: [new File([files[0].blob], files[0].name, { type: "text/plain" })] })); } catch {}
   F("expBody").hidden = true; F("btnDownload").hidden = true; F("expDone").hidden = false;
-  F("expDone").innerHTML = `<h2>Файл готов: ${P.orders.length} ${plural(P.orders.length, "платёжка", "платёжки", "платёжек")} на ${rub(sum(P.orders))} ₽</h2>
+  F("expDone").innerHTML = `<h2>${files.length > 1 ? "Файлы готовы" : "Файл готов"}: ${P.orders.length} ${plural(P.orders.length, "платёжка", "платёжки", "платёжек")} на ${rub(sum(P.orders))} ₽</h2>
+    <ul class="filelist">${files.map((f, i) => `<li>
+      <span class="fl-name"><b>${esc(f.sup.name)}</b><small class="mono">${esc(f.name)}</small></span>
+      <span class="fl-acts"><button class="btn act" type="button" data-dl="${i}">${phone ? "Скачать" : "Скачать ещё раз"}</button>${canShare ? `<button class="btn act" type="button" data-share="${i}">Сохранить в Файлы</button>` : ""}</span>
+    </li>`).join("")}</ul>
     <ol class="howto">
-      <li>${files.length > 1 ? "Файлы сохранены" : "Файл сохранён"} в папку «Загрузки»:<br>${files.map(f => `<span class="mono">${esc(f.name)}</span>`).join("<br>")}${files.length > 1 ? `<br><span style="color:var(--muted);font-size:.82rem">Если браузер спросит про скачивание нескольких файлов — разрешите.</span>` : ""}</li>
-      <li>В интернет-банке ${esc(P.org.bank || "")} откройте импорт платёжных поручений из 1С и загрузите ${files.length > 1 ? "каждый файл" : "этот файл"}.</li>
+      <li>${phone ? "Скачайте каждый файл кнопкой выше. На iPhone они попадают в «Файлы» → «Загрузки» (в Яндекс Браузере — в его «Загрузки»). «Сохранить в Файлы» — выбрать папку самому." : `${files.length > 1 ? "Файлы сохранены" : "Файл сохранён"} в папку «Загрузки». Если какого-то нет — «Скачать ещё раз».`}</li>
+      <li>В интернет-банке ${esc(P.org.bank || "")} откройте импорт платёжных поручений из 1С и загрузите ${files.length > 1 ? "каждый файл" : "файл"} — в имени файла есть поставщик и номер платёжки.</li>
       <li>Сверьте суммы и подпишите. Номера платёжек: ${P.orders[0].no}–${P.orders[P.orders.length - 1].no}.</li>
       <li>${GH.on ? "Отметки сохраняются на GitHub сами — ничего нажимать не нужно." : "В GitHub Desktop сделайте Commit и Push, чтобы статусы дошли до личного ПК."}</li>
     </ol>
     <div class="actions"><button class="btn primary" type="button" id="btnDonePaid">Банк исполнил — отметить оплаченными</button></div>`;
+  F("expDone").querySelectorAll("[data-dl]").forEach(b => b.onclick = () => { const f = files[+b.dataset.dl]; downloadBlob(f.blob, f.name); b.textContent = "Скачано ✓"; });
+  F("expDone").querySelectorAll("[data-share]").forEach(b => b.onclick = async () => {
+    const f = files[+b.dataset.share];
+    try { await navigator.share({ files: [new File([f.blob], f.name, { type: "text/plain" })], title: f.name }); b.textContent = "Готово ✓"; }
+    catch (e) { if (e && e.name !== "AbortError") toast("Не удалось — используйте «Скачать»"); }
+  });
   F("btnDonePaid").onclick = () => { setStatus(ids.map(id => docs().find(d => d.id === id)).filter(Boolean), "paid"); closeSheet(F("ovExp")); };
 };
 F("btnAdd").onclick = () => openDoc(null);

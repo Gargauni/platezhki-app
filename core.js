@@ -89,9 +89,12 @@
   }
   // Откуда срок: "doc" — указан в документе, "defer" — посчитан по отсрочке, "" — срока нет
   const dueSource = (data, d) => d.due ? "doc" : dueOf(data, d) ? "defer" : "";
+  // «Нужна проверка»: в review — что именно проверить. Пока поле не пусто, документ в выгрузку не попадает
+  const inReview = d => (d.status || "unpaid") === "unpaid" && !!String(d.review || "").trim();
   function stOf(data, d, t) {
     if (d.status === "paid") return "paid";
     if (d.status === "bank") return "bank";
+    if (inReview(d)) return "review";
     t = t || today();
     const due = dueOf(data, d);
     if (due && due < t) return "overdue";
@@ -140,7 +143,7 @@
     const off = opts.off || new Set();
     const org = orgById(data, orgId);
     if (!org) return { org: null, orgProblems: ["организация не найдена"], groups: [], orders: [] };
-    const docs = data.docs.filter(d => d.orgId === org.id && (d.status || "unpaid") === "unpaid");
+    const docs = data.docs.filter(d => d.orgId === org.id && (d.status || "unpaid") === "unpaid" && !inReview(d));
     const g = groupBy(docs, d => digits(d.supplierInn));
     let no = Number(opts.startNo) || Number(org.nextNo) || 1;
     const groups = [], orders = [];
@@ -345,6 +348,7 @@
       const d = { id: "", orgId: e.org.id, type: doc.type, source: "diadoc", number: doc.number, numberPay: "", date: doc.date, due: doc.due,
         amount: doc.amount, vatRate: doc.vatRate, vat: doc.vat, supplierInn: sup.inn, supplierName: sup.name,
         status: "unpaid", payNo: "", exportedAt: "", paidAt: "", createdAt: today_, scan: "ЭДО: " + e.file };
+      if (e.warn.length) d.review = e.warn.join("; ");   // предупреждения разбора — на проверку человеку
       d.id = docId(d); if (data.docs.some(x => x.id === d.id)) d.id += "-" + Date.now().toString(36) + n;
       data.docs.push(d); n++;
     }
@@ -403,7 +407,7 @@
     iso, today, D, ru, ruShort, human, diff, addDays, validISO,
     digits, kop, rub, rubIn, dot, vatOf, plural, sum, groupBy,
     innOk, accOk, corrOk, reqProblems,
-    emptyData, orgById, supByInn, payDays, nextPay, stOf, dueOf, dueSource, openPrepays,
+    emptyData, orgById, supByInn, payDays, nextPay, stOf, dueOf, dueSource, inReview, openPrepays,
     autoPayNum, payNum, purposeText, pack, exportPlan, markExported,
     cp1251, build1C, shortName, orgShort, fileName, exportFiles, checkData, docId, merge3,
     decodeXml, edoName, parseEdoXml, edoPlan, edoApply
