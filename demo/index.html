@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <!-- Версия программы: менять при каждой выкладке здесь и в ?v= у core.js ниже — по ней трекер узнаёт, что вышло обновление -->
-<meta name="app-version" content="R6.4">
+<meta name="app-version" content="R6.5">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#092634">
 <meta name="mobile-web-app-capable" content="yes">
@@ -728,7 +728,7 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
 
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="core.js?v=R6.4"></script>
+<script src="core.js?v=R6.5"></script>
 <script>
 (() => {
 "use strict";
@@ -904,7 +904,10 @@ function renderScanList(){
   F("btnUpload").disabled = !INBOX.files.length;
 }
 async function loadPending(){
-  const p = F("scanPending"); p.textContent = "Проверяю, что ждёт разбора…";
+  const p = F("scanPending");
+  if (DEMO){ p.innerHTML = (DEMOQ.length ? `<b>Ждут разбора: ${DEMOQ.length}</b>` + DEMOQ.map(n => `<span>${esc(n)}</span>`).join("") : "Очередь разбора пуста.")
+    + "<span>Демо: файлы никуда не отправляются — через несколько секунд появится вымышленный «распознанный» документ.</span>"; return; }
+  p.textContent = "Проверяю, что ждёт разбора…";
   try {
     const r = await gh("GET", "/git/trees/" + INBOX.branch + "?recursive=1", null, INBOX.repo);
     if (!r.ok) throw ghFail(r.status);
@@ -915,6 +918,7 @@ async function loadPending(){
 }
 // Все выбранные файлы — одним коммитом через Git Data API (подходит и для файлов больше 1 МБ)
 F("btnUpload").onclick = async () => {
+  if (DEMO) return demoUpload();
   const o = orgById(S.org) || {}, note = F("scanNote").value.trim(), req = pressed("tagReq"), urgent = pressed("tagUrgent");
   const now = new Date(), day = C.iso(now), hhmm = now.toTimeString().slice(0, 8).replace(/:/g, "");
   const tag = C.orgShort(o.name || "").replace(/\s+/g, "") + (req ? "_РЕКВИЗИТЫ" : "") + (urgent ? "_СРОЧНО" : "");
@@ -950,6 +954,31 @@ F("btnUpload").onclick = async () => {
     INBOX.files.forEach(x => { if (x.st === "загружаю…") x.st = "ошибка"; }); renderScanList();
   }
 };
+
+// Демо: имитация облачного разбора — файлы не покидают браузер, через несколько секунд появляется вымышленный документ
+const DEMOQ = [];
+async function demoUpload(){
+  const orgId = S.org, req = pressed("tagReq"), urgent = pressed("tagUrgent"), files = INBOX.files.slice();
+  F("btnUpload").disabled = true;
+  for (const x of files){ x.st = "загружаю…"; renderScanList(); await new Promise(r => setTimeout(r, 350)); x.st = "✓"; renderScanList(); }
+  const label = files.map(x => x.f.name).join(", ");
+  DEMOQ.push(label);
+  toast(`Отправлено на разбор: ${files.length} ${plural(files.length, "файл", "файла", "файлов")}`);
+  INBOX.files = []; F("scanFiles").value = ""; F("scanNote").value = ""; resetTags(); renderScanList(); loadPending();
+  setTimeout(() => {
+    DEMOQ.splice(DEMOQ.indexOf(label), 1);
+    if (!F("ovScan").hidden) loadPending();
+    if (req){ toast("Разобрано: реквизиты поставщика сохранены, к оплате ничего не добавлено"); return; }
+    const pool = sups(), sp = pool[Math.floor(Math.random() * pool.length)];
+    const amount = Math.round((3000 + Math.random() * 45000) * 100), n = docs().length + 1;
+    const d = { id: newId(), orgId, type: Math.random() < .5 ? "upd" : "invoice", source: "paper", number: "СК-" + String(1000 + Math.floor(Math.random() * 9000)), numberPay: "",
+      date: today(), due: urgent ? today() : "", amount, vatRate: "22", vat: C.vatOf(amount, "22"), supplierInn: sp.inn, supplierName: sp.name,
+      status: "unpaid", payNo: "", exportedAt: "", paidAt: "", createdAt: today(), scan: label };
+    if (n % 3 === 0) d.review = "демо: НДС на скане читается неуверенно — сверьте и нажмите «Проверено»";
+    docs().push(d); persist(); render();
+    toast(`Разобрано: ${TYPES[d.type]} № ${d.number} от ${sp.name.replace(/^ООО |^ИП /, "")} на ${rub(amount)} ₽` + (d.review ? " — нужна проверка" : ""));
+  }, 4000 + Math.random() * 2000);
+}
 
 /* ---------- обновление: телефон долго держит старую копию страницы, поэтому версию проверяем сами ---------- */
 const APP_VERSION = (document.querySelector('meta[name="app-version"]') || {}).content || "";
@@ -1000,6 +1029,7 @@ async function demoStart(){
     d.demoAnchor = today();
   }
   useData(d, "демо");
+  F("btnScan").hidden = false;
 }
 
 function persist(){
