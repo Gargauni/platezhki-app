@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <!-- Версия программы: менять при каждой выкладке здесь и в ?v= у core.js ниже — по ней трекер узнаёт, что вышло обновление -->
-<meta name="app-version" content="R5.4">
+<meta name="app-version" content="R5.5">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#092634">
 <meta name="mobile-web-app-capable" content="yes">
@@ -213,6 +213,11 @@ button{cursor:pointer}
 .p-soon{background:var(--warn-soft);color:var(--warn)}
 .p-overdue{background:var(--bad-soft);color:var(--bad)}
 .p-bank{background:var(--sunk);color:var(--ink);border:1px dashed var(--muted)}
+/* «Нужна проверка» — красная строка в группе своего поставщика */
+.p-review{background:var(--bad);color:var(--surface)}
+.row.review,.row.review:hover{background:var(--bad-soft);box-shadow:inset 4px 0 0 var(--bad)}
+.r-doc .r-q{color:var(--bad);font-weight:600;font-size:.85rem;margin-top:2px}
+.g-review{padding:8px 16px;border-bottom:1px solid var(--line);font-size:.85rem;color:var(--bad);font-weight:500}
 .stamp{display:inline-block;border:2px solid var(--ok);color:var(--ok);border-radius:4px;padding:1px 8px;font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;transform:rotate(-4deg);white-space:nowrap}
 @media (max-width:760px){
   .row{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"doc amt" "due st" "act act"}
@@ -610,7 +615,7 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
 
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="core.js?v=R5.4"></script>
+<script src="core.js?v=R5.5"></script>
 <script>
 (() => {
 "use strict";
@@ -974,7 +979,9 @@ function render(){
   const org = orgById(S.org);
   const base = docs().filter(d => orgOf(d) === S.org);
   const open = base.filter(d => d.status !== "paid");
-  const unpaid = open.filter(d => d.status !== "bank");
+  const pending = open.filter(d => d.status !== "bank");
+  const review = pending.filter(d => C.inReview(d));
+  const unpaid = pending.filter(d => !C.inReview(d));   // к оплате — без документов «на проверке»
   const overdue = unpaid.filter(d => stOf(d) === "overdue");
   const bank = open.filter(d => d.status === "bank");
   const days = payDays(S.org);
@@ -990,17 +997,20 @@ function render(){
   F("stats").innerHTML = `
     ${tabs ? "" : `<div class="stat"><span class="k">К оплате</span><span class="v">${rub(sum(unpaid))} ₽<small>${unpaid.length} ${plural(unpaid.length, "документ", "документа", "документов")}</small></span></div>
     <div class="stat pay"><span class="k">Платёжный день</span><span class="v">${esc(np === today() ? "сегодня" : human(np))}<small>${orders} ${plural(orders, "платёжка", "платёжки", "платёжек")}</small></span></div>`}
+    ${review.length ? `<div class="stat bad"><span class="k">Нужна проверка</span><span class="v">${rub(sum(review))} ₽<small>${review.length} шт. · в выгрузку не попадут</small></span></div>` : ""}
     ${overdue.length ? `<div class="stat bad"><span class="k">Просрочено</span><span class="v">${rub(sum(overdue))} ₽<small>${overdue.length} шт.</small></span></div>` : ""}
     ${bank.length ? `<div class="stat"><span class="k">Выгружены в банк</span><span class="v">${rub(sum(bank))} ₽<small>${bank.length} шт.</small></span></div>` : ""}`;
   F("stats").hidden = !F("stats").textContent.trim();
-  const counts = { open: open.length, overdue: overdue.length, bank: bank.length, paid: base.length - open.length, all: base.length };
-  F("chips").innerHTML = [["open","Не оплачены"],["overdue","Просрочены"],["bank","В банке"],["paid","Оплачены"],["all","Все"]]
+  const counts = { open: open.length, review: review.length, overdue: overdue.length, bank: bank.length, paid: base.length - open.length, all: base.length };
+  if (S.st === "review" && !review.length) S.st = "open";
+  F("chips").innerHTML = [["open","Не оплачены"], ...(review.length ? [["review","На проверке"]] : []), ["overdue","Просрочены"],["bank","В банке"],["paid","Оплачены"],["all","Все"]]
     .map(([k, l]) => `<button type="button" class="chip" data-st="${k}" aria-pressed="${S.st === k}">${l}<b>${counts[k]}</b></button>`).join("");
 
   const q = S.q.trim().toLowerCase();
   const rows = base.filter(d => { const s = stOf(d);
     if (S.st === "open" && s === "paid") return false;
     if (S.st === "overdue" && s !== "overdue") return false;
+    if (S.st === "review" && s !== "review") return false;
     if (S.st === "bank" && s !== "bank") return false;
     if (S.st === "paid" && s !== "paid") return false;
     if (q && ![d.supplierName, d.supplierInn, d.number, C.payNum(d)].join(" ").toLowerCase().includes(q)) return false;
@@ -1008,7 +1018,7 @@ function render(){
   F("empty").hidden = docs().length > 0;
   if (!docs().length){ F("list").innerHTML = ""; return; }
   if (!rows.length){ F("list").innerHTML = `<p style="color:var(--muted);padding:8px 2px">${S.st === "open" ? "Всё оплачено." : "Ничего не найдено."}</p>`; return; }
-  const rank = { overdue: 0, soon: 1, unpaid: 2, bank: 3, paid: 4 };
+  const rank = { review: -1, overdue: 0, soon: 1, unpaid: 2, bank: 3, paid: 4 };
   const g = groupBy(rows, d => (d.orgId || "") + "|" + digits(d.supplierInn) + "|" + (stOf(d) === "paid" ? "p" : stOf(d) === "bank" ? "b" : "o"));
   const list = [...g.values()].map(items => {
     items.sort((a, b) => rank[stOf(a)] - rank[stOf(b)] || (dueOf(a) || "9").localeCompare(dueOf(b) || "9") || (a.date || "").localeCompare(b.date || ""));
@@ -1020,7 +1030,8 @@ function render(){
 function renderOrgTabs(){
   const nav = F("orgTabs"); nav.hidden = orgs().length < 2; if (nav.hidden) return;
   nav.innerHTML = orgs().map(o => {
-    const unpaid = docs().filter(d => orgOf(d) === o.id && d.status === "unpaid");
+    const pending = docs().filter(d => orgOf(d) === o.id && d.status === "unpaid");
+    const rev = pending.filter(d => C.inReview(d)).length, unpaid = pending.filter(d => !C.inReview(d));
     const over = unpaid.filter(d => stOf(d) === "overdue").length, soon = unpaid.filter(d => stOf(d) === "soon").length;
     const np = C.nextPay(payDays(o.id));
     const n = C.exportPlan(S.data, o.id).orders.length;
@@ -1028,31 +1039,35 @@ function renderOrgTabs(){
     return `<button type="button" class="orgtab" data-org="${esc(o.id)}" aria-pressed="${S.org === o.id}" style="--oc:${c};--ocs:${s}">
       <span class="on"><i aria-hidden="true"></i>${esc(C.orgShort(o.name))}</span>
       <span class="amt">${rub(sum(unpaid))} ₽</span>
-      <span class="meta">${unpaid.length ? esc(np === today() ? "сегодня" : human(np)) + " · " + n + " " + plural(n, "платёжка", "платёжки", "платёжек") : "долгов нет"}${over ? ` · <b>просрочено ${over}</b>` : soon ? ` · <b>срочно ${soon}</b>` : ""}</span>
+      <span class="meta">${unpaid.length ? esc(np === today() ? "сегодня" : human(np)) + " · " + n + " " + plural(n, "платёжка", "платёжки", "платёжек") : "долгов нет"}${rev ? ` · <b>проверка ${rev}</b>` : over ? ` · <b>просрочено ${over}</b>` : soon ? ` · <b>срочно ${soon}</b>` : ""}</span>
     </button>`; }).join("");
 }
 F("orgTabs").addEventListener("click", e => { const b = e.target.closest("[data-org]"); if (!b || b.dataset.org === S.org) return; S.org = b.dataset.org; lsSet("org", S.org); render(); });
 function groupHTML(items){
   const d0 = items[0], sup = supOf(d0.supplierInn), state = stOf(d0);
   const isOpen = state !== "paid" && state !== "bank";
-  const chunks = isOpen ? C.pack(items, sup) : [];
+  // Документы «на проверке» стоят в группе поставщика, но в платёжку, сумму и «Оплачено» не входят
+  const rev = isOpen ? items.filter(d => C.inReview(d)) : [], pay = isOpen ? items.filter(d => !C.inReview(d)) : items;
+  const chunks = isOpen && pay.length ? C.pack(pay, sup) : [];
   const probs = sup ? C.reqProblems(sup) : ["нет банковских реквизитов — добавьте их в «Реквизиты»"];
   const name = (sup && sup.name) || d0.supplierName || "Поставщик не указан";
-  return `<div class="group" data-ids="${esc(items.map(d => d.id).join(","))}">
+  return `<div class="group" data-ids="${esc(pay.map(d => d.id).join(","))}">
     <div class="g-head">
       <div class="g-name">${esc(name)}<small class="mono">ИНН ${esc(digits(d0.supplierInn) || "—")}${sup && sup.deferDays ? ` · отсрочка ${sup.deferDays} дн.` : ""}</small></div>
-      <span class="g-sum">${rub(sum(items))} ₽</span>
-      ${isOpen ? `<div class="g-acts"><button class="btn sm" type="button" data-g="purpose">Назначение</button><button class="btn sm" type="button" data-g="amount">Сумма</button><button class="btn sm" type="button" data-g="paid">Оплачено</button></div>` : ""}
+      <span class="g-sum">${rub(sum(pay.length ? pay : items))} ₽</span>
+      ${isOpen && pay.length ? `<div class="g-acts"><button class="btn sm" type="button" data-g="purpose">Назначение</button><button class="btn sm" type="button" data-g="amount">Сумма</button><button class="btn sm" type="button" data-g="paid">Оплачено</button></div>` : ""}
     </div>
-    ${isOpen ? `<div class="g-purpose">${chunks.length > 1 ? `Не влезает в 210 символов — будет ${chunks.length} платёжки:` : `${items.length} ${plural(items.length, "документ", "документа", "документов")} → 1 платёжка:`}
+    ${rev.length ? `<div class="g-review">Нужна проверка: ${rev.length} ${plural(rev.length, "документ", "документа", "документов")} на ${rub(sum(rev))} ₽ — в платёжку не входят, пока не нажмёте «Проверено»</div>` : ""}
+    ${chunks.length ? `<div class="g-purpose">${chunks.length > 1 ? `Не влезает в 210 символов — будет ${chunks.length} платёжки:` : `${pay.length} ${plural(pay.length, "документ", "документа", "документов")} → 1 платёжка:`}
       ${chunks.map(c => `<br><code>${esc(C.purposeText(c, sup))}</code>`).join("")}</div>` : ""}
-    ${isOpen && probs.length ? `<div class="g-warn">Реквизиты поставщика: ${esc(probs.join("; "))}. Без них в банк не выгрузится.</div>` : ""}
+    ${isOpen && pay.length && probs.length ? `<div class="g-warn">Реквизиты поставщика: ${esc(probs.join("; "))}. Без них в банк не выгрузится.</div>` : ""}
     ${items.map(rowHTML).join("")}
   </div>`;
 }
 function rowHTML(d){
   const s = stOf(d);
-  const pill = s === "paid" ? `<span class="stamp">Оплачен${d.paidAt ? " " + ruShort(d.paidAt) : ""}</span>`
+  const pill = s === "review" ? `<span class="pill p-review">Нужна проверка</span>`
+    : s === "paid" ? `<span class="stamp">Оплачен${d.paidAt ? " " + ruShort(d.paidAt) : ""}</span>`
     : s === "bank" ? `<span class="pill p-bank">В банке${d.payNo ? " · п/п " + esc(d.payNo) : ""}</span>`
     : s === "overdue" ? `<span class="pill p-overdue">Просрочен</span>`
     : s === "soon" ? `<span class="pill p-soon" title="Срок оплаты раньше ближайшего платёжного дня">Срочно</span>`
@@ -1065,9 +1080,10 @@ function rowHTML(d){
   const vat = d.vatRate && d.vatRate !== "none" ? "НДС " + d.vatRate + "% " + rub(d.vat || 0) : "без НДС";
   const acts = s === "paid" ? `<button class="btn sm quiet" type="button" data-a="unpay">Вернуть</button>`
     : s === "bank" ? `<button class="btn sm" type="button" data-a="paid">Оплачен</button><button class="btn sm quiet" type="button" data-a="unpay">Не прошёл</button>`
+    : s === "review" ? `<button class="btn sm" type="button" data-a="reviewed">Проверено</button>`
     : `<button class="btn sm" type="button" data-a="paid">Оплачен</button>`;
-  return `<article class="row" data-id="${esc(d.id)}" tabindex="0">
-    <div class="r-doc">${esc(TYPES[d.type] || "Документ")} <span class="ns">№</span> ${esc(d.number || "—")}${d.date ? " от " + ru(d.date) : ""}<small>${esc(SOURCES[d.source] || "")}${d.prepay ? " · <b>предоплата</b>" + (s === "paid" && !d.closedBy ? ", ждём УПД" : "") : ""}${d.closesPrepay ? " · закрывает предоплату" : ""}${C.payNum(d) !== String(d.number || "").trim() ? " · в назначении " + esc(C.payNum(d)) : ""}</small></div>
+  return `<article class="row${s === "review" ? " review" : ""}" data-id="${esc(d.id)}" tabindex="0">
+    <div class="r-doc">${esc(TYPES[d.type] || "Документ")} <span class="ns">№</span> ${esc(d.number || "—")}${d.date ? " от " + ru(d.date) : ""}<small>${esc(SOURCES[d.source] || "")}${d.prepay ? " · <b>предоплата</b>" + (s === "paid" && !d.closedBy ? ", ждём УПД" : "") : ""}${d.closesPrepay ? " · закрывает предоплату" : ""}${C.payNum(d) !== String(d.number || "").trim() ? " · в назначении " + esc(C.payNum(d)) : ""}</small>${s === "review" ? `<small class="r-q">Проверить: ${esc(d.review)}</small>` : ""}</div>
     <div class="r-due">${esc(due)}</div>
     <div class="r-amt">${rub(d.amount || 0)} ₽<small>${esc(vat)}</small></div>
     <div class="r-st">${pill}</div>
@@ -1087,10 +1103,17 @@ F("list").addEventListener("click", e => {
   const row = e.target.closest(".row"); if (!row) return;
   const d = docs().find(x => x.id === row.dataset.id); if (!d) return;
   const a = e.target.closest("[data-a]");
+  if (a && a.dataset.a === "reviewed") return reviewed(d);
   if (a) return setStatus([d], a.dataset.a === "paid" ? "paid" : "unpaid");
   openDoc(d);
 });
 F("list").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.classList.contains("row")){ const d = docs().find(x => x.id === e.target.dataset.id); if (d) openDoc(d); } });
+// «Проверено» — снять пометку: документ становится обычным «К оплате» и попадает в платёжку
+function reviewed(d){
+  d.reviewed = (d.review ? d.review + " · " : "") + "проверено " + ru(today());
+  delete d.review;
+  persist(); render(); toast("Проверено — документ в плане оплаты");
+}
 function setStatus(items, status){
   for (const d of items){ d.status = status;
     if (status === "paid") d.paidAt = today();
