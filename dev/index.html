@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <!-- Версия программы: менять при каждой выкладке здесь и в ?v= у core.js ниже — по ней трекер узнаёт, что вышло обновление -->
-<meta name="app-version" content="R6">
+<meta name="app-version" content="R6.1">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#092634">
 <meta name="mobile-web-app-capable" content="yes">
@@ -281,6 +281,106 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
 #btnDonePaid{width:100%;padding:12px 14px;font-size:1rem}   /* кнопки одна под другой, на всю ширину */
 .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:.9rem;z-index:40;max-width:calc(100% - 32px)}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(12px);opacity:.6}}}
+
+/* ===== Визуальный слой (R6.1): как в современных банковских приложениях — крупные скругления, мягкие тени,
+   полупрозрачные панели с размытием, лёгкие градиенты. Разметка, порядок и размеры кнопок не меняются. ===== */
+:root{
+  --r:22px; --r-sm:14px; --r-xs:10px;
+  --bg:#F2F3F7; --sunk:#F5F6FA; --line:rgba(20,28,45,.08);
+  --sh-1:0 1px 2px rgba(18,26,44,.04),0 4px 14px rgba(18,26,44,.05);
+  --sh-2:0 2px 6px rgba(18,26,44,.05),0 14px 36px rgba(18,26,44,.09);
+  --glass:rgba(255,255,255,.72); --glass-line:rgba(255,255,255,.7);
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0B0D12; --surface:#1A1D24; --sunk:#22262F; --line:rgba(255,255,255,.07);
+  --sh-1:0 1px 2px rgba(0,0,0,.3),0 6px 18px rgba(0,0,0,.25);
+  --sh-2:0 2px 8px rgba(0,0,0,.35),0 18px 44px rgba(0,0,0,.45);
+  --glass:rgba(30,33,41,.66); --glass-line:rgba(255,255,255,.06) }}
+:root[data-theme="ocean"]{ --bg:#F1F5F7; --line:rgba(9,38,52,.08) }
+@media (prefers-color-scheme: dark){ :root[data-theme="ocean"]{ --bg:#071E2A; --surface:#0E2C3B; --sunk:#123443; --line:rgba(255,255,255,.07); --glass:rgba(14,44,59,.66) } }
+
+/* Фон: мягкое свечение в цвете открытого ИП */
+body{background:var(--bg)}
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:radial-gradient(900px 520px at 0% -8%,color-mix(in srgb,var(--accent) 22%,transparent),transparent 62%),
+             radial-gradient(700px 480px at 100% 0%,color-mix(in srgb,var(--accent) 12%,transparent),transparent 60%)}
+
+/* Стекло: шапка, карточки ИП, сводка, фильтры */
+.orghead,.orgtab,.stats,.chip,.filters input[type=search],.filters select{
+  background:var(--glass);-webkit-backdrop-filter:blur(22px) saturate(1.6);backdrop-filter:blur(22px) saturate(1.6)}
+
+/* Карточка открытого ИП: градиент в его цвете вместо полосы слева */
+.orghead{border:1px solid var(--glass-line);border-radius:var(--r);box-shadow:var(--sh-2);padding:16px 60px 16px 18px;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 20%,var(--glass)) 0%,var(--glass) 70%)}
+.orghead:hover{box-shadow:var(--sh-2),inset 0 0 0 1px color-mix(in srgb,var(--accent) 40%,transparent)}
+.oh-gear{top:12px;right:12px;border:0;background:var(--glass);box-shadow:var(--sh-1)}
+.top h1 i{box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 22%,transparent)}
+
+/* Кнопки: скругление побольше, главная — с градиентом и цветной тенью */
+.btn{border-radius:var(--r-sm);border-color:transparent;box-shadow:var(--sh-1);transition:transform .12s ease,filter .12s ease,box-shadow .12s ease}
+.btn:hover{border-color:transparent;filter:brightness(1.03)}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 82%,#fff),var(--accent));
+  box-shadow:0 8px 22px color-mix(in srgb,var(--accent) 32%,transparent),inset 0 1px 0 rgba(255,255,255,.25)}
+.btn.quiet{box-shadow:none}
+.btn.act{border:2px solid color-mix(in srgb,var(--accent) 55%,transparent);background:color-mix(in srgb,var(--accent-soft) 70%,var(--glass));
+  -webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px)}
+.btn.sm{border-radius:var(--r-xs)}
+.btn:disabled{transform:none;filter:none}
+
+/* Карточки кабинетов ИП: цветная точка и мягкая подсветка вместо полосы */
+.orgtab{border:1px solid var(--glass-line);border-left:1px solid var(--glass-line);border-radius:var(--r);box-shadow:var(--sh-1);padding:14px 18px}
+.orgtab:hover{border-color:var(--glass-line);box-shadow:var(--sh-2)}
+.orgtab[aria-pressed="true"]{border-color:transparent;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--oc) 22%,var(--glass)),var(--glass) 75%);
+  box-shadow:var(--sh-2),inset 0 0 0 2px color-mix(in srgb,var(--oc) 55%,transparent)}
+.orgtab .on i{box-shadow:0 0 0 4px color-mix(in srgb,var(--oc) 22%,transparent)}
+.orgtab .amt{font-size:1.4rem;letter-spacing:-.01em}
+
+/* Сводка и фильтры */
+.stats{border:1px solid var(--glass-line);border-radius:var(--r);box-shadow:var(--sh-1);padding:16px 20px}
+.chip{border:1px solid var(--glass-line);box-shadow:var(--sh-1);padding:6px 14px}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink);box-shadow:var(--sh-2)}
+.filters input[type=search],.filters select{border:1px solid var(--glass-line);border-radius:var(--r-sm);box-shadow:var(--sh-1);padding:9px 14px}
+
+/* Группы поставщиков — белые карточки с тенью, разделители тоньше */
+.group{border:0;border-radius:var(--r);box-shadow:var(--sh-1)}
+.g-head{background:transparent;border-bottom:1px solid var(--line);padding:14px 18px}
+.g-purpose,.g-warn,.g-review{padding:10px 18px;border-bottom-color:var(--line)}
+.g-purpose{background:color-mix(in srgb,var(--sunk) 60%,transparent)}
+.row{padding:13px 18px;border-top-color:var(--line)}
+.row:hover{background:color-mix(in srgb,var(--sunk) 70%,transparent)}
+.pill{padding:4px 11px}
+.p-review{background:linear-gradient(180deg,color-mix(in srgb,var(--bad) 85%,#fff),var(--bad));box-shadow:0 4px 12px color-mix(in srgb,var(--bad) 30%,transparent)}
+.row.review,.row.review:hover{background:linear-gradient(90deg,var(--bad-soft),color-mix(in srgb,var(--bad-soft) 55%,var(--surface)))}
+
+/* Пустые экраны, плашки, уведомления */
+.card{border:0;border-radius:var(--r);box-shadow:var(--sh-1);background:var(--glass);-webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px)}
+.update{border-radius:var(--r-sm);background:linear-gradient(135deg,var(--accent),color-mix(in srgb,var(--accent) 70%,#000));box-shadow:0 10px 26px color-mix(in srgb,var(--accent) 30%,transparent)}
+.notice,.banner{border-radius:var(--r-sm)}
+
+/* Окна: затемнение с размытием, крупные скругления, полупрозрачная шапка */
+.overlay{-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.sheet{border-radius:28px;box-shadow:var(--sh-2),0 30px 80px rgba(0,0,0,.25);overflow:clip}
+.sh-head{position:sticky;top:0;z-index:2;background:var(--glass);-webkit-backdrop-filter:blur(22px) saturate(1.6);backdrop-filter:blur(22px) saturate(1.6);border-bottom-color:var(--line)}
+.sh-foot{background:var(--glass);-webkit-backdrop-filter:blur(22px) saturate(1.6);backdrop-filter:blur(22px) saturate(1.6);border-top-color:var(--line);border-radius:0 0 28px 28px}
+.x{width:36px;height:36px;display:grid;place-items:center;padding:0;border-radius:50%;background:var(--sunk)}
+.menu{border:0;border-radius:var(--r);box-shadow:var(--sh-1);background:var(--surface)}
+.mi{background:transparent;border-top-color:var(--line)}
+.mi-ic{border-radius:12px;background:linear-gradient(135deg,var(--accent-soft),color-mix(in srgb,var(--accent-soft) 60%,var(--surface)))}
+.th,.recitem,.po,.filelist li,.edoitem,.scanlist li{border-color:var(--line);border-radius:var(--r-sm);box-shadow:var(--sh-1);background:var(--surface)}
+.drop{border-radius:var(--r);border-color:color-mix(in srgb,var(--accent) 30%,var(--line));background:color-mix(in srgb,var(--accent-soft) 45%,var(--surface))}
+.logout{border-radius:var(--r-sm)}
+
+/* Поля ввода: без рамок, мягкий фон, кольцо фокуса */
+.f input,.f select,.f textarea{border:1px solid transparent;border-radius:12px;background:var(--sunk);transition:box-shadow .12s ease,border-color .12s ease}
+.f input:focus,.f select:focus,.f textarea:focus{outline:none;border-color:color-mix(in srgb,var(--accent) 60%,transparent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 16%,transparent)}
+.preview{border:0;border-radius:12px}
+.days label{border-radius:10px;border-color:var(--line);background:var(--sunk)}
+
+/* Уведомление внизу — «капсула» со стеклом */
+.toast{border-radius:999px;padding:11px 20px;background:color-mix(in srgb,var(--ink) 86%,transparent);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);box-shadow:var(--sh-2)}
+@media (prefers-reduced-motion:no-preference){.sheet{animation:up .26s cubic-bezier(.2,.8,.2,1)}@keyframes up{from{transform:translateY(24px) scale(.98);opacity:0}}}
 </style>
 </head>
 <body>
@@ -615,7 +715,7 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
 
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="core.js?v=R6"></script>
+<script src="core.js?v=R6.1"></script>
 <script>
 (() => {
 "use strict";
