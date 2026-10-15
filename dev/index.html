@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <!-- Версия программы: менять при каждой выкладке здесь и в ?v= у core.js ниже — по ней трекер узнаёт, что вышло обновление -->
-<meta name="app-version" content="R6.3">
+<meta name="app-version" content="R6.4">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#092634">
 <meta name="mobile-web-app-capable" content="yes">
@@ -728,10 +728,14 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
 
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="core.js?v=R6.3"></script>
+<script src="core.js?v=R6.4"></script>
 <script>
 (() => {
 "use strict";
+// Гостевая версия (папка /demo/ на сайте): вымышленные данные из demo.json, хранение только в этом браузере.
+// Свои ключи localStorage — ключ GitHub рабочего трекера с того же сайта демо не видит и не использует.
+const DEMO = /\/demo\//.test(location.pathname);
+const LSP = DEMO ? "platezhki.demo." : "platezhki.";
 const C = window.Core;
 const { digits, ru, ruShort, human, diff, today, kop, rub, rubIn, plural, sum, groupBy, TYPES, SOURCES, VATS, WD, DEFAULT_DAYS } = C;
 const $ = (s, r = document) => r.querySelector(s);
@@ -979,9 +983,27 @@ if (LOCAL){
   F("btnOpen").classList.add("primary");
 
 }
-(() => { const t = lsGet("gh.token"); if (t) ghLogin(t); else if (!LOCAL) setTimeout(() => F("ghToken").focus(), 50); })();
+(() => { if (DEMO) return demoStart(); const t = lsGet("gh.token"); if (t) ghLogin(t); else if (!LOCAL) setTimeout(() => F("ghToken").focus(), 50); })();
+// Демо: сохранённая в браузере копия или свежая из demo.json; даты сдвигаются так, чтобы demoAnchor стал сегодняшним днём
+async function demoStart(){
+  await Promise.resolve();   // дождаться конца скрипта: рисовать экран можно только после всех объявлений
+  F("openCard").hidden = true;
+  let d = null;
+  try { d = JSON.parse(lsGet("data") || "null"); } catch {}
+  if (!d){
+    try { d = await (await fetch("demo.json", { cache: "no-store" })).json(); }
+    catch { F("openCard").hidden = false; F("openLead").textContent = "Не удалось загрузить демо-данные. Обновите страницу."; return; }
+    const shift = C.diff(d.demoAnchor || today(), today());
+    const mv = v => C.validISO(v) ? C.addDays(v, shift) : v;
+    d.docs.forEach(x => ["date", "due", "paidAt", "exportedAt", "createdAt"].forEach(k => { x[k] = mv(x[k]); }));
+    d.suppliers.forEach(x => { x.updatedAt = mv(x.updatedAt); });
+    d.demoAnchor = today();
+  }
+  useData(d, "демо");
+}
 
 function persist(){
+  if (DEMO){ lsSet("data", JSON.stringify(S.data)); renderFileBar(); return; }
   FS.dirty = true; renderFileBar();
   if (GH.on){ clearTimeout(GH.timer); GH.timer = setTimeout(() => { FS.chain = FS.chain.then(ghSave); }, 1200); return; }
   if (!FS.handle) return;
@@ -996,6 +1018,12 @@ function persist(){
 }
 function renderFileBar(){
   const b = F("filebar"); b.hidden = !S.data; if (!S.data) return;
+  if (DEMO){
+    b.classList.remove("dirty");
+    b.innerHTML = `<span><span class="dot"></span><b>Демо-версия</b> · все организации, поставщики и суммы вымышлены, изменения сохраняются только в этом браузере</span><button class="btn sm" type="button" id="btnDemoReset">Сбросить демо</button>`;
+    F("btnDemoReset").onclick = () => { try { localStorage.removeItem(LSP + "data"); } catch {} location.reload(); };
+    return;
+  }
   if (GH.on){
     const draft = GH.branch !== "main";
     b.classList.toggle("dirty", !!GH.err || FS.dirty);
@@ -1040,8 +1068,8 @@ $$(".overlay").forEach(ov => ov.addEventListener("click", e => { if (e.target ==
 document.addEventListener("keydown", e => { if (e.key === "Escape"){ const o = $$(".overlay").filter(x => !x.hidden).pop(); if (o) closeSheet(o); } });
 const newId = () => "d" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 // Запоминаем выбранный кабинет — только удобство, без него всё работает
-function lsGet(k){ try { return localStorage.getItem("platezhki." + k); } catch { return null; } }
-function lsSet(k, v){ try { localStorage.setItem("platezhki." + k, v); } catch {} }
+function lsGet(k){ try { return localStorage.getItem(LSP + k); } catch { return null; } }
+function lsSet(k, v){ try { localStorage.setItem(LSP + k, v); } catch {} }
 
 /* ---------- организации: у каждой свой цвет ---------- */
 // [основной, фон, текст на основном, цвет текста-акцента] для светлого и тёмного режима

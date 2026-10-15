@@ -1,0 +1,1566 @@
+﻿<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<!-- Версия программы: менять при каждой выкладке здесь и в ?v= у core.js ниже — по ней трекер узнаёт, что вышло обновление -->
+<meta name="app-version" content="R6.4">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#092634">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Платежи">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%2214%22 fill=%22%23004E72%22/%3E%3Ctext x=%2232%22 y=%2244%22 font-size=%2236%22 text-anchor=%22middle%22 fill=%22white%22 font-family=%22Arial%22 font-weight=%22bold%22%3E₽%3C/text%3E%3C/svg%3E">
+<title>Счета к оплате</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one working column. File bar → summary → filters → ledger grouped by supplier (one group = one payment order). Sheets slide over for a document, requisites and the bank export. */
+:root{
+  --bg:#ECEFF4; --surface:#FFFFFF; --sunk:#F4F6F9; --ink:#151C2A; --muted:#5A6679; --line:#D5DBE4;
+  --accent:#2A3BA0; --accent-ink:#FFFFFF; --accent-soft:#E3E6F7;
+  --ok:#1B7046; --ok-soft:#DFF1E6; --warn:#955700; --warn-soft:#FAEDD4; --bad:#B0261B; --bad-soft:#FAE3DF;
+  --info:#3D5A99; --info-soft:#E3E8F5;
+  --scrim:rgba(14,20,32,.48);
+  --f-ui:"Golos Text",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  --r:10px; color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0F131A; --surface:#171C25; --sunk:#12161D; --ink:#E5E9F0; --muted:#94A0B3; --line:#2A3241;
+  --accent:#9AA6FF; --accent-ink:#0F131A; --accent-soft:#222949;
+  --ok:#57C78F; --ok-soft:#173326; --warn:#E5A940; --warn-soft:#3A2B12; --bad:#F2786C; --bad-soft:#3C1C19;
+  --info:#9DB0E8; --info-soft:#232C45;
+  --scrim:rgba(0,0,0,.6); color-scheme:dark }}
+/* Темы (выбор в шапке). Цвета ИП для каждой темы — в ORG_COLORS в скрипте. */
+:root[data-theme="ocean"]{   /* White #F9F9F9 · Blue #004E72 · Orange #FF6E42 · Navy #092634 */
+  --bg:#F9F9F9; --surface:#FFFFFF; --sunk:#F0F4F6; --ink:#092634; --muted:#4D6676; --line:#D6E0E6; --scrim:rgba(9,38,52,.5) }
+@media (prefers-color-scheme: dark){
+  :root[data-theme="ocean"]{ --bg:#092634; --surface:#0E3142; --sunk:#0B2B3A; --ink:#F9F9F9; --muted:#9DB5C3; --line:#1F4659; --scrim:rgba(0,0,0,.6) }
+}
+.themesel{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 10px;font-size:.88rem}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 var(--f-ui)}
+/* Как приложение: без масштабирования и сдвига вбок, без «резинки» и подсветки нажатий */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;touch-action:pan-x pan-y;overflow-x:hidden;overscroll-behavior:none}
+body{overflow-x:hidden;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
+button,.chip,.orghead,.mi,.th,.drop{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+/* iPhone увеличивает страницу при фокусе на поле с шрифтом меньше 16px — на сенсорных экранах ставим 16px */
+@media (pointer:coarse){ input,select,textarea{font-size:16px!important} }
+.wrap{max-width:1040px;margin:0 auto;padding-inline:max(16px,env(safe-area-inset-left));padding-block:20px calc(64px + env(safe-area-inset-bottom));display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+h1,h2,h3{margin:0;text-wrap:balance}
+h1{font-size:1.6rem;font-weight:700;letter-spacing:-.01em}
+h2{font-size:1.15rem;font-weight:600}
+h3{font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+p{margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+
+.top{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
+.orghead{display:grid;gap:2px;border:1px solid var(--accent);border-left:6px solid var(--accent);background:var(--accent-soft);border-radius:var(--r);padding:12px 16px;cursor:pointer;min-width:0}
+.orghead:hover{box-shadow:inset 0 0 0 1px var(--accent)}
+.orghead:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.orghead{position:relative;padding-right:56px}
+.oh-gear{position:absolute;top:10px;right:10px;width:38px;height:38px;display:grid;place-items:center;border-radius:50%;color:var(--accent-text,var(--accent));background:var(--surface);border:1px solid var(--line)}
+.orghead:hover .oh-gear{border-color:var(--accent)}
+/* Меню настроек и выбор темы */
+.sheet.narrow{max-width:480px}
+.menu{display:grid;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.mi{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--surface);border:0;border-top:1px solid var(--line);padding:14px 16px}
+.mi:first-child{border-top:0}
+.mi:hover{background:var(--sunk)}
+.mi-ic{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent-text,var(--accent));flex:none}
+.mi-t{display:grid;flex:1;min-width:0}
+.mi-t small{color:var(--muted);font-size:.84rem}
+.mi-ch{color:var(--muted);font-size:1.4rem;line-height:1}
+.themes{display:grid;gap:10px}
+.th{display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+.th[aria-checked="true"]{border:2px solid var(--accent);background:var(--accent-soft)}
+.th-sw{display:flex}
+.th-sw i{width:22px;height:22px;border-radius:50%;border:2px solid var(--surface);margin-left:-6px}
+.th-sw i:first-child{margin-left:0}
+/* Кнопки: «Выгрузить в банк» на всю ширину, ниже две равные */
+.top .actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.top .actions .btn{padding:12px 14px;font-size:1rem}
+#btnExport{grid-column:1/-1}
+#btnScan[hidden] + #btnAdd{grid-column:1/-1}
+#btnEdo{grid-column:1/-1}
+/* Второстепенная кнопка действия — единый стиль везде: жирная рамка и текст в цвете открытого ИП */
+.btn.act{border:2px solid var(--accent);color:var(--accent-text,var(--accent));font-weight:600;padding:12px 14px;font-size:1rem}
+/* Пометки в «Добавить скан»: срочно — красный, только реквизиты — синий; цвета не зависят от ИП */
+#tagUrgent{border-color:var(--bad);color:var(--bad);font-weight:600}
+#tagUrgent[aria-pressed="true"]{background:var(--bad);border-color:var(--bad);color:var(--surface)}
+#tagReq{border-color:var(--info);color:var(--info);font-weight:600}
+#tagReq[aria-pressed="true"]{background:var(--info);border-color:var(--info);color:var(--surface)}
+/* ПК (широкий экран): карточка ИП слева, кнопки обычного размера справа в ряд; «Выгрузить в банк» — крайняя справа */
+@media (min-width:820px){
+  .top{grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:16px}
+  .top .actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}
+  .top .actions .btn{padding:9px 16px;font-size:.95rem}
+  #btnEdo{order:0} #btnScan{order:1} #btnAdd{order:2} #btnExport{order:3}
+}
+.top .sub{color:var(--muted);font-size:.9rem;margin-top:2px}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 14px;font-weight:500;line-height:1.2}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.quiet{border-color:transparent;background:transparent;color:var(--muted);padding:6px 8px}
+.btn.quiet:hover{color:var(--ink)}
+.btn.danger{color:var(--bad)}
+.btn.danger-fill{background:var(--bad);border-color:var(--bad);color:var(--surface);font-weight:600}
+.btn.danger-fill:disabled{opacity:.4}
+.grow{flex:1}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.sm{padding:5px 10px;font-size:.85rem}
+
+.filebar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;font-size:.85rem;color:var(--muted)}
+.filebar .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block;margin-right:6px}
+.filebar.dirty .dot{background:var(--warn)}
+.filebar.dirty{color:var(--ink)}
+
+.update{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;background:var(--accent);color:var(--accent-ink);border-radius:var(--r);padding:10px 14px;font-size:.92rem}
+.update .btn{background:var(--surface);color:var(--ink);border-color:var(--surface);font-weight:600}
+.logout{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;margin-top:14px;padding:14px 16px;border:2px solid var(--bad);border-radius:var(--r);background:var(--bad-soft);color:var(--bad);font-weight:600;font-size:1rem;text-align:center}
+.logout:hover{filter:brightness(1.05)}
+.logout.armed{background:var(--bad);color:var(--surface)}
+.appver{text-align:center;font-size:.8rem;color:var(--muted)}
+.notice{border:1px solid var(--warn);background:var(--warn-soft);border-radius:var(--r);padding:10px 14px;font-size:.9rem}
+.stats{display:flex;flex-wrap:wrap;gap:8px 28px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 18px}
+.stat{display:grid;gap:2px;min-width:0}
+.stat .k{font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.stat .v{font-family:var(--f-num);font-variant-numeric:tabular-nums;font-size:1.15rem;font-weight:500}
+.stat .v small{font-family:var(--f-ui);font-size:.8rem;color:var(--muted);font-weight:400;margin-left:4px}
+.stat.bad .v{color:var(--bad)}
+.stat.pay .v{font-family:var(--f-ui);font-weight:600;color:var(--accent-text,var(--accent))}
+
+/* Кабинеты ИП: у каждой организации свой цвет (--oc), выбранная задаёт --accent всей странице */
+.orgtabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.orgtab{appearance:none;text-align:left;display:grid;gap:4px;background:var(--surface);border:1px solid var(--line);border-left:6px solid var(--oc);border-radius:var(--r);padding:12px 16px;min-width:0}
+.orgtab:hover{border-color:var(--oc)}
+.orgtab:focus-visible{outline:2px solid var(--oc);outline-offset:2px}
+.orgtab[aria-pressed="true"]{border-color:var(--oc);background:var(--ocs);box-shadow:inset 0 0 0 1px var(--oc)}
+.orgtab .on{font-weight:600;display:flex;align-items:center;gap:8px}
+.orgtab .on i{width:10px;height:10px;border-radius:50%;background:var(--oc);flex:none}
+.orgtab .amt{font-family:var(--f-num);font-variant-numeric:tabular-nums;font-size:1.25rem;font-weight:500}
+.orgtab .meta{font-size:.85rem;color:var(--muted)}
+.orgtab .meta b{color:var(--bad);font-weight:600}
+.top h1{display:flex;align-items:center;gap:10px;font-size:clamp(1.25rem,4.5vw,1.6rem)}
+.top h1 i{width:14px;height:14px;border-radius:50%;background:var(--accent);flex:none}
+.payer{border-left:6px solid var(--accent);background:var(--accent-soft);border-radius:8px;padding:10px 14px;display:grid;gap:2px}
+.payer b{font-size:1.05rem}
+.payer span{font-size:.85rem;color:var(--muted)}
+.drop{position:relative;display:grid;gap:4px;justify-items:start;border:2px dashed var(--line);border-radius:var(--r);padding:18px;cursor:pointer;background:var(--sunk);min-width:0}
+.drop:hover,.drop:focus-within{border-color:var(--accent)}
+.drop b{color:var(--accent-text,var(--accent))}
+.drop span{font-size:.85rem;color:var(--muted)}
+/* Системную кнопку выбора файла прячем: на iPhone её подпись с именем файла не сжимается и раздвигает окно. Нажимается вся рамка (label), выбранные файлы — списком ниже */
+.drop input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.scanlist{margin:0;padding:0;list-style:none;display:grid;gap:6px}
+/* Список документов из ЭДО */
+.edolist{display:grid;gap:8px}
+.edoitem{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 12px;align-items:start;border:1px solid var(--line);border-radius:8px;padding:10px 12px;cursor:pointer}
+.edoitem input{margin-top:3px;width:18px;height:18px}
+.edoitem:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.ei-main{display:grid;gap:2px;min-width:0;overflow-wrap:anywhere}
+.ei-main small{color:var(--muted);font-size:.8rem}
+.ei-main .mono{font-size:.88rem}
+.ei-main .ei-warn{color:var(--warn)}
+.ei-amt{text-align:right;white-space:nowrap}
+.ei-amt small{display:block;color:var(--muted);font-size:.75rem}
+.edoskip summary{cursor:pointer;color:var(--muted)}
+.edoskip ul{margin-top:8px}
+.scanlist li{display:flex;justify-content:space-between;gap:10px;font-size:.88rem;border:1px solid var(--line);border-radius:8px;padding:7px 10px;min-width:0}
+.scanlist li span:first-child{min-width:0;overflow-wrap:anywhere}
+.scanlist li .st{color:var(--muted);white-space:nowrap;font-family:var(--f-num);font-size:.8rem}
+.pending{font-size:.85rem;color:var(--muted);display:grid;gap:4px}
+.howscan summary{cursor:pointer;color:var(--accent-text,var(--accent));font-weight:500}
+.howscan ol{margin-top:8px}
+.filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px;font-size:.88rem}
+.chip b{font-weight:600;margin-left:4px;font-family:var(--f-num);font-size:.82rem}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.filters input[type=search]{flex:1 1 220px;min-width:0;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 12px}
+.filters select{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 10px}
+
+.list{display:grid;gap:12px}
+.group{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.g-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:12px 16px;background:var(--sunk);border-bottom:1px solid var(--line)}
+.g-name{font-weight:600;min-width:0;flex:1 1 220px}
+.g-name small{display:block;font-weight:400;color:var(--muted);font-size:.8rem}
+.g-sum{font-family:var(--f-num);font-variant-numeric:tabular-nums;font-weight:500}
+.g-acts{display:flex;gap:6px;flex-wrap:wrap}
+.g-purpose{padding:8px 16px;border-bottom:1px solid var(--line);font-size:.85rem;color:var(--muted)}
+.g-purpose code{font-family:var(--f-num);font-size:.8rem;color:var(--ink);word-break:break-word}
+.g-warn{padding:8px 16px;border-bottom:1px solid var(--line);font-size:.85rem;background:var(--warn-soft)}
+.row{display:grid;grid-template-columns:minmax(0,1fr) 150px 130px 150px auto;align-items:center;gap:10px 16px;padding:11px 16px;border-top:1px solid var(--line);cursor:pointer}
+.g-purpose + .row,.g-head + .row,.g-warn + .row{border-top:0}
+.row:hover{background:var(--sunk)}
+.r-doc{font-family:var(--f-num);font-size:.92rem;min-width:0;overflow-wrap:anywhere}
+.r-doc small{display:block;font-family:var(--f-ui);color:var(--muted);font-size:.8rem}
+.ns{font-family:var(--f-ui)}  /* в цифровом шрифте нет знака № */
+.r-due{font-size:.88rem;color:var(--muted)}
+.r-amt{font-family:var(--f-num);font-variant-numeric:tabular-nums;text-align:right}
+.r-amt small{display:block;color:var(--muted);font-size:.75rem}
+.r-act{display:flex;gap:6px;justify-content:flex-end}
+.pill{display:inline-block;border-radius:999px;padding:3px 10px;font-size:.78rem;font-weight:600;white-space:nowrap}
+.p-unpaid{background:var(--accent-soft);color:var(--accent-text,var(--accent))}
+.p-soon{background:var(--warn-soft);color:var(--warn)}
+.p-overdue{background:var(--bad-soft);color:var(--bad)}
+.p-bank{background:var(--sunk);color:var(--ink);border:1px dashed var(--muted)}
+/* «Нужна проверка» — красная строка в группе своего поставщика */
+.p-review{background:var(--bad);color:var(--surface)}
+.row.review,.row.review:hover{background:var(--bad-soft);box-shadow:inset 4px 0 0 var(--bad)}
+.r-doc .r-q{color:var(--bad);font-weight:600;font-size:.85rem;margin-top:2px}
+.g-review{padding:8px 16px;border-bottom:1px solid var(--line);font-size:.85rem;color:var(--bad);font-weight:500}
+.stamp{display:inline-block;border:2px solid var(--ok);color:var(--ok);border-radius:4px;padding:1px 8px;font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;transform:rotate(-4deg);white-space:nowrap}
+@media (max-width:760px){
+  .row{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"doc amt" "due st" "act act"}
+  .r-doc{grid-area:doc}.r-amt{grid-area:amt}.r-due{grid-area:due}.r-st{grid-area:st;text-align:right}.r-act{grid-area:act;justify-content:flex-start}
+}
+.card{background:var(--surface);border:1px dashed var(--line);border-radius:var(--r);padding:24px;display:grid;gap:14px;justify-items:start}
+.card p{color:var(--muted);max-width:62ch}
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;width:100%}
+.step{border-top:2px solid var(--accent);padding-top:10px;display:grid;gap:4px}
+.step span{color:var(--muted);font-size:.88rem}
+
+.overlay{position:fixed;inset:0;background:var(--scrim);display:flex;justify-content:center;align-items:flex-start;padding:16px 12px;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;z-index:20}
+.sheet{background:var(--surface);color:var(--ink);border-radius:14px;width:100%;max-width:780px;min-width:0;display:grid;grid-template-columns:minmax(0,1fr);box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.sh-body > *{min-width:0}
+.sh-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line)}
+.sh-body{padding:18px 20px;display:grid;gap:18px}
+.sh-foot{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--line);position:sticky;bottom:0;background:var(--surface);border-radius:0 0 14px 14px}
+.sh-foot .grow{flex:1}
+.x{border:0;background:transparent;font-size:1.4rem;line-height:1;color:var(--muted);padding:4px 8px}
+fieldset{border:0;margin:0;padding:0;display:grid;gap:10px}
+legend{padding:0;margin-bottom:8px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px 12px}
+.f{display:grid;gap:4px;min-width:0}
+.f.wide{grid-column:1/-1}
+.f label{font-size:.8rem;color:var(--muted)}
+.f input,.f select,.f textarea{border:1px solid var(--line);background:var(--sunk);border-radius:8px;padding:8px 10px;width:100%;min-width:0}
+/* Одинаковая высота полей; у полей даты на iPhone свой размер и выравнивание — приводим к остальным */
+.f input:not([type=checkbox]),.f select{height:42px}
+.f input[type=date]{-webkit-appearance:none;appearance:none;display:block;min-width:0;max-width:100%;text-align:left;line-height:1.2}
+.f input[type=date]::-webkit-date-and-time-value{text-align:left}
+.f input[type=checkbox]{width:20px;height:20px;flex:none}
+.f .hint{font-size:.78rem;color:var(--muted)}
+.banner{border:1px solid var(--warn);background:var(--warn-soft);border-radius:8px;padding:10px 12px;font-size:.88rem;display:grid;gap:8px;justify-items:start}
+.banner.bad{border-color:var(--bad);background:var(--bad-soft)}
+.preview{background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-family:var(--f-num);font-size:.85rem;word-break:break-word}
+.preview .len{display:block;font-family:var(--f-ui);color:var(--muted);font-size:.75rem;margin-top:4px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line)}
+.tab{border:0;background:transparent;padding:8px 12px;border-bottom:2px solid transparent;color:var(--muted);font-weight:500}
+.tab[aria-selected="true"]{color:var(--ink);border-color:var(--accent)}
+.reclist{display:grid;gap:8px}
+.recitem{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.recitem div{min-width:0}
+.recitem small{display:block;color:var(--muted);font-family:var(--f-num);font-size:.8rem;overflow-wrap:anywhere}
+.days{display:flex;flex-wrap:wrap;gap:6px}
+.days label{display:flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:.88rem}
+.po{border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.po-head{display:flex;flex-wrap:wrap;gap:6px 12px;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--sunk)}
+.po-docs{display:grid;padding:6px 14px}
+.po-docs label{display:flex;gap:10px;align-items:center;padding:4px 0;font-size:.9rem}
+.po-out{display:grid;gap:8px;padding:10px 14px;border-top:1px solid var(--line)}
+.po-one{display:grid;gap:2px}
+.po-one .t{font-size:.8rem;color:var(--muted)}
+.total{display:flex;flex-wrap:wrap;gap:6px 16px;justify-content:space-between;align-items:baseline;font-size:.95rem}
+ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
+/* Файлы для банка после выгрузки — у каждого свои кнопки */
+.filelist{margin:0 0 6px;padding:0;list-style:none;display:grid;gap:8px}
+.filelist li{display:grid;gap:10px;border:1px solid var(--line);border-radius:8px;padding:12px}
+.fl-name{display:grid;gap:2px;min-width:0}
+.fl-name small{color:var(--muted);font-size:.78rem;overflow-wrap:anywhere}
+.fl-acts{display:grid;gap:8px}
+#btnDonePaid{width:100%;padding:12px 14px;font-size:1rem}   /* кнопки одна под другой, на всю ширину */
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:.9rem;z-index:40;max-width:calc(100% - 32px)}
+@media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(12px);opacity:.6}}}
+
+/* ===== Визуальный слой (R6.1): как в современных банковских приложениях — крупные скругления, мягкие тени,
+   полупрозрачные панели с размытием, лёгкие градиенты. Разметка, порядок и размеры кнопок не меняются. ===== */
+:root{
+  --r:22px; --r-sm:14px; --r-xs:10px;
+  --bg:#F2F3F7; --sunk:#F5F6FA; --line:rgba(20,28,45,.08);
+  --sh-1:0 1px 2px rgba(18,26,44,.04),0 4px 14px rgba(18,26,44,.05);
+  --sh-2:0 2px 6px rgba(18,26,44,.05),0 14px 36px rgba(18,26,44,.09);
+  --glass:rgba(255,255,255,.72); --glass-line:rgba(255,255,255,.7);
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0B0D12; --surface:#1A1D24; --sunk:#22262F; --line:rgba(255,255,255,.07);
+  --sh-1:0 1px 2px rgba(0,0,0,.3),0 6px 18px rgba(0,0,0,.25);
+  --sh-2:0 2px 8px rgba(0,0,0,.35),0 18px 44px rgba(0,0,0,.45);
+  --glass:rgba(30,33,41,.66); --glass-line:rgba(255,255,255,.06) }}
+:root[data-theme="ocean"]{ --bg:#F1F5F7; --line:rgba(9,38,52,.08) }
+@media (prefers-color-scheme: dark){ :root[data-theme="ocean"]{ --bg:#071E2A; --surface:#0E2C3B; --sunk:#123443; --line:rgba(255,255,255,.07); --glass:rgba(14,44,59,.66) } }
+
+/* Фон: мягкое свечение в цвете открытого ИП */
+body{background:var(--bg)}
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:radial-gradient(900px 520px at 0% -8%,color-mix(in srgb,var(--accent) 22%,transparent),transparent 62%),
+             radial-gradient(700px 480px at 100% 0%,color-mix(in srgb,var(--accent) 12%,transparent),transparent 60%)}
+
+/* Стекло: шапка, карточки ИП, сводка, фильтры */
+.orghead,.orgtab,.stats,.chip,.filters input[type=search],.filters select{
+  background:var(--glass);-webkit-backdrop-filter:blur(22px) saturate(1.6);backdrop-filter:blur(22px) saturate(1.6)}
+
+/* Карточка открытого ИП: градиент в его цвете вместо полосы слева */
+.orghead{border:1px solid var(--glass-line);border-radius:var(--r);box-shadow:var(--sh-2);padding:16px 60px 16px 18px;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 20%,var(--glass)) 0%,var(--glass) 70%)}
+.orghead:hover{box-shadow:var(--sh-2),inset 0 0 0 1px color-mix(in srgb,var(--accent) 40%,transparent)}
+.oh-gear{top:12px;right:12px;border:0;background:var(--glass);box-shadow:var(--sh-1)}
+.top h1 i{box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 22%,transparent)}
+
+/* Кнопки: скругление побольше, главная — с градиентом и цветной тенью */
+.btn{border-radius:var(--r-sm);border-color:transparent;box-shadow:var(--sh-1);transition:transform .12s ease,filter .12s ease,box-shadow .12s ease}
+.btn:hover{border-color:transparent;filter:brightness(1.03)}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 82%,#fff),var(--accent));
+  box-shadow:0 8px 22px color-mix(in srgb,var(--accent) 32%,transparent),inset 0 1px 0 rgba(255,255,255,.25)}
+.btn.quiet{box-shadow:none}
+.btn.act{border:2px solid color-mix(in srgb,var(--accent) 55%,transparent);background:color-mix(in srgb,var(--accent-soft) 70%,var(--glass));
+  -webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px)}
+.btn.sm{border-radius:var(--r-xs)}
+.btn:disabled{transform:none;filter:none}
+
+/* Карточки кабинетов ИП: цветная точка и мягкая подсветка вместо полосы */
+.orgtab{border:1px solid var(--glass-line);border-left:1px solid var(--glass-line);border-radius:var(--r);box-shadow:var(--sh-1);padding:14px 18px}
+.orgtab:hover{border-color:var(--glass-line);box-shadow:var(--sh-2)}
+.orgtab[aria-pressed="true"]{border-color:transparent;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--oc) 22%,var(--glass)),var(--glass) 75%);
+  box-shadow:var(--sh-2),inset 0 0 0 2px color-mix(in srgb,var(--oc) 55%,transparent)}
+.orgtab .on i{box-shadow:0 0 0 4px color-mix(in srgb,var(--oc) 22%,transparent)}
+.orgtab .amt{font-size:1.4rem;letter-spacing:-.01em}
+
+/* Сводка и фильтры */
+.stats{border:1px solid var(--glass-line);border-radius:var(--r);box-shadow:var(--sh-1);padding:16px 20px}
+.chip{border:1px solid var(--glass-line);box-shadow:var(--sh-1);padding:6px 14px}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink);box-shadow:var(--sh-2)}
+.filters input[type=search],.filters select{border:1px solid var(--glass-line);border-radius:var(--r-sm);box-shadow:var(--sh-1);padding:9px 14px}
+
+/* Группы поставщиков — белые карточки с тенью, разделители тоньше */
+.group{border:0;border-radius:var(--r);box-shadow:var(--sh-1)}
+.g-head{background:transparent;border-bottom:1px solid var(--line);padding:14px 18px}
+.g-purpose,.g-warn,.g-review{padding:10px 18px;border-bottom-color:var(--line)}
+.g-purpose{background:color-mix(in srgb,var(--sunk) 60%,transparent)}
+.row{padding:13px 18px;border-top-color:var(--line)}
+.row:hover{background:color-mix(in srgb,var(--sunk) 70%,transparent)}
+.pill{padding:4px 11px}
+.p-review{background:linear-gradient(180deg,color-mix(in srgb,var(--bad) 85%,#fff),var(--bad));box-shadow:0 4px 12px color-mix(in srgb,var(--bad) 30%,transparent)}
+.row.review,.row.review:hover{background:linear-gradient(90deg,var(--bad-soft),color-mix(in srgb,var(--bad-soft) 55%,var(--surface)))}
+
+/* Пустые экраны, плашки, уведомления */
+.card{border:0;border-radius:var(--r);box-shadow:var(--sh-1);background:var(--glass);-webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px)}
+.update{border-radius:var(--r-sm);background:linear-gradient(135deg,var(--accent),color-mix(in srgb,var(--accent) 70%,#000));box-shadow:0 10px 26px color-mix(in srgb,var(--accent) 30%,transparent)}
+.notice,.banner{border-radius:var(--r-sm)}
+
+/* Окна: затемнение с размытием, крупные скругления, полупрозрачная шапка */
+.overlay{-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.sheet{border-radius:28px;box-shadow:var(--sh-2),0 30px 80px rgba(0,0,0,.25);overflow:clip}
+.sh-head{position:sticky;top:0;z-index:2;background:var(--glass);-webkit-backdrop-filter:blur(22px) saturate(1.6);backdrop-filter:blur(22px) saturate(1.6);border-bottom-color:var(--line)}
+.sh-foot{background:var(--glass);-webkit-backdrop-filter:blur(22px) saturate(1.6);backdrop-filter:blur(22px) saturate(1.6);border-top-color:var(--line);border-radius:0 0 28px 28px}
+.x{width:36px;height:36px;display:grid;place-items:center;padding:0;border-radius:50%;background:var(--sunk)}
+.menu{border:0;border-radius:var(--r);box-shadow:var(--sh-1);background:var(--surface)}
+.mi{background:transparent;border-top-color:var(--line)}
+.mi-ic{border-radius:12px;background:linear-gradient(135deg,var(--accent-soft),color-mix(in srgb,var(--accent-soft) 60%,var(--surface)))}
+.th,.recitem,.po,.filelist li,.edoitem,.scanlist li{border-color:var(--line);border-radius:var(--r-sm);box-shadow:var(--sh-1);background:var(--surface)}
+.drop{border-radius:var(--r);border-color:color-mix(in srgb,var(--accent) 30%,var(--line));background:color-mix(in srgb,var(--accent-soft) 45%,var(--surface))}
+.logout{border-radius:var(--r-sm)}
+
+/* Поля ввода: без рамок, мягкий фон, кольцо фокуса */
+.f input,.f select,.f textarea{border:1px solid transparent;border-radius:12px;background:var(--sunk);transition:box-shadow .12s ease,border-color .12s ease}
+.f input:focus,.f select:focus,.f textarea:focus{outline:none;border-color:color-mix(in srgb,var(--accent) 60%,transparent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 16%,transparent)}
+.preview{border:0;border-radius:12px}
+.days label{border-radius:10px;border-color:var(--line);background:var(--sunk)}
+
+/* Уведомление внизу — «капсула» со стеклом */
+.toast{border-radius:999px;padding:11px 20px;background:color-mix(in srgb,var(--ink) 86%,transparent);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);box-shadow:var(--sh-2)}
+/* Темы 2026 (R6.2). Цвета ИП для каждой — в ORG_COLORS в скрипте. */
+/* Бирюза: Transformative Teal (WGSN/Coloro 2026) — свежий фон с сине-зелёным оттенком */
+:root[data-theme="teal"]{ --bg:#EDF3F2; --surface:#FFFFFF; --sunk:#F2F7F6; --ink:#0E2A2A; --muted:#55706F; --line:rgba(14,42,42,.09);
+  --glass:rgba(255,255,255,.72); --glass-line:rgba(255,255,255,.7); --scrim:rgba(14,42,42,.45) }
+@media (prefers-color-scheme: dark){ :root[data-theme="teal"]{ --bg:#071514; --surface:#10221F; --sunk:#16302C; --ink:#E6F2F0; --muted:#94B3AF;
+  --line:rgba(200,255,245,.08); --glass:rgba(16,36,33,.68); --glass-line:rgba(200,255,245,.06) } }
+/* Графит: монохром в духе Linear и Vercel — почти чёрно-белый, цвет только у ИП и статусов */
+:root[data-theme="graphite"]{ --bg:#F4F4F5; --surface:#FFFFFF; --sunk:#F7F7F8; --ink:#0A0A0B; --muted:#6B6B74; --line:rgba(0,0,0,.08);
+  --glass:rgba(255,255,255,.75); --glass-line:rgba(255,255,255,.8); --scrim:rgba(0,0,0,.45) }
+@media (prefers-color-scheme: dark){ :root[data-theme="graphite"]{ --bg:#08080A; --surface:#131316; --sunk:#1B1B1F; --ink:#EDEDEF; --muted:#8E8E98;
+  --line:rgba(255,255,255,.07); --glass:rgba(22,22,26,.7); --glass-line:rgba(255,255,255,.05) } }
+:root[data-theme="graphite"] body::before{opacity:.5}
+
+@media (prefers-reduced-motion:no-preference){.sheet{animation:up .26s cubic-bezier(.2,.8,.2,1)}@keyframes up{from{transform:translateY(24px) scale(.98);opacity:0}}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="update" id="updBar" hidden role="status"><span>Вышла новая версия трекера <b id="updVer"></b></span><button class="btn sm" type="button" id="btnUpd">Обновить</button></div>
+  <header class="top">
+    <!-- Карточка открытого ИП в его цвете; нажатие (или шестерёнка) — меню «Настройки» -->
+    <div class="orghead" id="orgHead" role="button" tabindex="0" aria-label="Настройки">
+      <h1 id="hTitle">Счета к оплате</h1>
+      <p class="sub" id="sub">УПД, счета и накладные — бумажные и из Диадока</p>
+      <span class="oh-gear" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span>
+    </div>
+    <div class="actions">
+      <button class="btn primary" id="btnExport" type="button" disabled>Выгрузить в банк</button>
+      <button class="btn act" id="btnScan" type="button" hidden>Добавить скан</button>
+      <button class="btn act" id="btnAdd" type="button" disabled>+ Документ</button>
+      <button class="btn act" id="btnEdo" type="button" disabled>Из ЭДО</button>
+    </div>
+  </header>
+  <div class="filebar" id="filebar" hidden></div>
+  <div class="notice" id="notice" hidden></div>
+
+  <section class="card" id="openCard">
+    <h2 id="openTitle">Вход в трекер</h2>
+    <p id="openLead">Данные хранятся в закрытом репозитории на GitHub. Введите ключ доступа один раз на этом устройстве — дальше трекер будет открываться сразу, а изменения сохраняться сами.</p>
+    <form class="f" id="ghForm" style="width:100%;max-width:560px" autocomplete="off">
+      <label for="ghToken">Ключ GitHub</label>
+      <input id="ghToken" class="mono" type="password" placeholder="github_pat_…" spellcheck="false" autocomplete="off">
+      <span class="hint">Ключ хранится только в этом браузере. Потеряли устройство — отзовите ключ на github.com, и доступ пропадёт.</span>
+    </form>
+    <div class="actions"><button class="btn primary" type="submit" form="ghForm" id="btnGh">Войти</button></div>
+    <div class="banner bad" id="ghErr" hidden></div>
+    <details style="width:100%">
+      <summary style="cursor:pointer;color:var(--muted)">Открыть файл с диска (по-старому, через GitHub Desktop)</summary>
+      <div class="actions" style="margin-top:10px">
+        <button class="btn" type="button" id="btnReopen" hidden></button>
+        <button class="btn" type="button" id="btnOpen">Выбрать tracker.json</button>
+      </div>
+      <p id="fsNote" hidden>Этот браузер не умеет сохранять в файл напрямую. Откройте страницу в Chrome или Edge. Здесь изменения придётся скачивать вручную и заменять ими <span class="mono">data/tracker.json</span>.</p>
+    </details>
+    <input type="file" id="fileInput" accept=".json,application/json" hidden>
+  </section>
+
+  <div id="main" hidden>
+    <div style="display:grid;grid-template-columns:minmax(0,1fr);gap:16px">
+      <nav class="orgtabs" id="orgTabs" aria-label="Организация" hidden></nav>
+      <section class="stats" id="stats"></section>
+      <section class="filters">
+        <div class="chips" id="chips" role="group" aria-label="Статус"></div>
+        <input type="search" id="q" placeholder="Поставщик, ИНН, номер" aria-label="Поиск">
+      </section>
+      <section class="list" id="list"></section>
+      <section class="card" id="empty" hidden>
+        <h2>Здесь появятся документы к оплате</h2>
+        <div class="steps">
+          <div class="step"><b>1. Сканы в папку inbox</b><span>На личном ПК Claude Code командой /inbox разносит сканы УПД и счетов в tracker.json.</span></div>
+          <div class="step"><b>2. Синхронизация через GitHub</b><span>На рабочем ПК нажмите Fetch/Pull в GitHub Desktop, чтобы получить свежие данные.</span></div>
+          <div class="step"><b>3. Выгрузка в банк</b><span>В платёжный день — «Выгрузить в банк», файл загружается в СДМ, остаётся подписать.</span></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- Документ -->
+<div class="overlay" id="ovDoc" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="docTitle">
+    <div class="sh-head"><h2 id="docTitle">Новый документ</h2><button class="x" type="button" data-close aria-label="Закрыть">×</button></div>
+    <form class="sh-body" id="docForm" novalidate>
+      <fieldset>
+        <legend><h3>Документ</h3></legend>
+        <div class="grid">
+          <div class="f"><label for="d-org">Кто платит</label><select id="d-org"></select></div>
+          <div class="f"><label for="d-type">Тип</label><select id="d-type"><option value="upd">УПД</option><option value="invoice">Счёт</option><option value="waybill">Накладная</option><option value="act">Акт</option></select></div>
+          <div class="f"><label for="d-source">Откуда</label><select id="d-source"><option value="paper">Бумага</option><option value="diadoc">Диадок</option><option value="other">Другое</option></select></div>
+          <div class="f"><label for="d-number">Номер как в документе</label><input id="d-number" class="mono" autocomplete="off"></div>
+          <div class="f"><label for="d-paynum">Номер в назначение</label><input id="d-paynum" class="mono" autocomplete="off"><span class="hint">Сам отрезает часть-дату: 011026-3215 → 3215</span></div>
+          <div class="f"><label for="d-date">Дата документа</label><input id="d-date" type="date"></div>
+          <div class="f"><label for="d-due">Оплатить до</label><input id="d-due" type="date"><span class="hint">Пусто, если срока нет</span></div>
+          <div class="f"><label for="d-amount">Сумма к оплате, ₽</label><input id="d-amount" class="mono" inputmode="decimal" autocomplete="off"></div>
+          <div class="f"><label for="d-vatrate">НДС</label><select id="d-vatrate"></select></div>
+          <div class="f"><label for="d-vat">в т.ч. НДС, ₽</label><input id="d-vat" class="mono" inputmode="decimal" autocomplete="off"></div>
+          <div class="f wide"><label for="d-prepay">Предоплата</label><span style="display:flex;gap:8px;align-items:center;min-height:38px"><input type="checkbox" id="d-prepay"><span>платим до получения товара</span></span><span class="hint">Когда придёт УПД — он закроет этот счёт, второй раз не платим</span></div>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend><h3>Поставщик</h3></legend>
+        <div class="grid">
+          <div class="f"><label for="d-sinn">ИНН</label><input id="d-sinn" class="mono" inputmode="numeric" list="supList" autocomplete="off"></div>
+          <div class="f wide"><label for="d-sname">Название как в платёжке</label><input id="d-sname" autocomplete="off"></div>
+          <div class="f"><label for="r-kpp">КПП</label><input id="r-kpp" class="mono" inputmode="numeric" autocomplete="off"></div>
+          <div class="f"><label for="r-acc">Расчётный счёт</label><input id="r-acc" class="mono" inputmode="numeric" autocomplete="off"></div>
+          <div class="f"><label for="r-bik">БИК</label><input id="r-bik" class="mono" inputmode="numeric" autocomplete="off"></div>
+          <div class="f"><label for="r-corr">Корр. счёт</label><input id="r-corr" class="mono" inputmode="numeric" autocomplete="off"></div>
+          <div class="f"><label for="r-bank">Банк</label><input id="r-bank" autocomplete="off"></div>
+          <div class="f"><label for="r-city">Город банка</label><input id="r-city" placeholder="г. Москва" autocomplete="off"></div>
+          <div class="f"><label for="r-subject">Оплата за…</label><input id="r-subject" placeholder="запчасти" autocomplete="off"></div>
+          <div class="f"><label for="r-word">Документ в назначении</label><input id="r-word" placeholder="Счет" autocomplete="off"></div>
+          <div class="f"><label for="r-defer">Отсрочка, дней</label><input id="r-defer" class="mono" inputmode="numeric" placeholder="нет" autocomplete="off"><span class="hint">По договору. Срок в самом документе важнее</span></div>
+        </div>
+        <div id="reqErrs"></div>
+      </fieldset>
+      <div class="f wide">
+        <h3>Назначение, если платить только этот документ</h3>
+        <div class="preview" id="docPreview"></div>
+      </div>
+      <div id="dupBanner" hidden></div>
+    </form>
+    <div class="sh-foot">
+      <button class="btn danger" type="button" id="btnDel" hidden>Удалить</button>
+      <span class="grow"></span>
+      <button class="btn" type="button" data-close>Отмена</button>
+      <button class="btn primary" type="button" id="btnSave">Сохранить</button>
+    </div>
+  </div>
+</div>
+<datalist id="supList"></datalist>
+
+<!-- Реквизиты -->
+<!-- Меню «Настройки»: каждый пункт открывает своё окно поверх. Новые разделы добавлять сюда же. -->
+<div class="overlay" id="ovSet" hidden>
+  <div class="sheet narrow" role="dialog" aria-modal="true" aria-labelledby="setTitle">
+    <div class="sh-head"><h2 id="setTitle">Настройки</h2><button class="x" type="button" data-close aria-label="Закрыть">×</button></div>
+    <div class="sh-body">
+      <nav class="menu" aria-label="Разделы настроек">
+        <button type="button" class="mi" id="miTheme">
+          <span class="mi-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.65-.75 1.65-1.69 0-.44-.18-.84-.44-1.13-.29-.29-.44-.65-.44-1.13a1.64 1.64 0 0 1 1.67-1.67h2c3.05 0 5.56-2.5 5.56-5.55C21.96 6.01 17.46 2 12 2z"/></svg></span>
+          <span class="mi-t"><b>Тема оформления</b><small id="miThemeNow"></small></span><span class="mi-ch" aria-hidden="true">›</span>
+        </button>
+        <button type="button" class="mi" id="miReq">
+          <span class="mi-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/></svg></span>
+          <span class="mi-t"><b>Реквизиты</b><small>Мои организации и поставщики</small></span><span class="mi-ch" aria-hidden="true">›</span>
+        </button>
+      </nav>
+      <!-- Выход — отдельно от разделов, красным; срабатывает со второго нажатия -->
+      <button type="button" class="logout" id="btnLogout" hidden>
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+        <span id="logoutText">Выйти</span>
+      </button>
+      <p class="appver" id="appVer"></p>
+    </div>
+  </div>
+</div>
+
+<!-- Удаление организации: только после ввода слова «удалить» -->
+<div class="overlay" id="ovDelOrg" hidden>
+  <div class="sheet narrow" role="dialog" aria-modal="true" aria-labelledby="delOrgTitle">
+    <div class="sh-head"><h2 id="delOrgTitle">Удалить организацию?</h2><button class="x" type="button" data-close aria-label="Закрыть">×</button></div>
+    <div class="sh-body">
+      <div class="banner bad" id="delOrgInfo"></div>
+      <div class="f wide"><label for="delOrgWord">Чтобы подтвердить, введите слово <b>удалить</b></label><input id="delOrgWord" autocomplete="off" spellcheck="false" autocapitalize="off"></div>
+    </div>
+    <div class="sh-foot">
+      <span class="grow"></span>
+      <button class="btn" type="button" data-close>Отмена</button>
+      <button class="btn danger-fill" type="button" id="btnDelOrgGo" disabled>Удалить</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="ovTheme" hidden>
+  <div class="sheet narrow" role="dialog" aria-modal="true" aria-labelledby="themeTitle">
+    <div class="sh-head"><h2 id="themeTitle">Тема оформления</h2><button class="x" type="button" data-close aria-label="Закрыть">×</button></div>
+    <div class="sh-body"><div class="themes" id="themeList" role="radiogroup" aria-labelledby="themeTitle"></div></div>
+  </div>
+</div>
+
+<div class="overlay" id="ovReq" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="reqTitle">
+    <div class="sh-head"><h2 id="reqTitle">Реквизиты</h2><button class="x" type="button" data-close aria-label="Закрыть">×</button></div>
+    <div class="sh-body">
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" id="tabOrgs" aria-selected="true" type="button">Мои организации</button>
+        <button class="tab" role="tab" id="tabSups" aria-selected="false" type="button">Поставщики</button>
+      </div>
+      <div id="paneOrgs" class="sh-body" style="padding:0">
+        <div class="actions"><button class="btn sm" type="button" id="btnOrgNew">+ Новая организация</button></div>
+        <div class="reclist" id="orgList"></div>
+      </div>
+      <div id="paneSups" class="sh-body" style="padding:0" hidden>
+        <div class="reclist" id="supRecList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Карточка открывается отдельным окном поверх списка в «Реквизитах» -->
+<div class="overlay" id="ovOrgEdit" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="orgFormTitle">
+    <div class="sh-head"><h2 id="orgFormTitle">Организация</h2><button class="x" type="button" data-close aria-label="Закрыть">×</button></div>
+    <div class="sh-body">
+      <form id="orgForm" novalidate>
+        <fieldset>
+          <div class="grid">
+            <div class="f wide"><label for="o-name">Название как в платёжке</label><input id="o-name" placeholder="ИП Иванов Иван Иванович" autocomplete="off"></div>
+            <div class="f"><label for="o-inn">ИНН</label><input id="o-inn" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f"><label for="o-kpp">КПП (у ИП пусто)</label><input id="o-kpp" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f"><label for="o-acc">Расчётный счёт</label><input id="o-acc" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f"><label for="o-bik">БИК</label><input id="o-bik" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f"><label for="o-corr">Корр. счёт</label><input id="o-corr" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f"><label for="o-bank">Банк</label><input id="o-bank" autocomplete="off"></div>
+            <div class="f"><label for="o-city">Город банка</label><input id="o-city" placeholder="г. Москва" autocomplete="off"></div>
+            <div class="f"><label for="o-next">Следующий № платёжки</label><input id="o-next" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f wide"><label>Платёжные дни</label><div class="days" id="o-days"></div></div>
+          </div>
+          <div id="orgErrs"></div>
+          <div class="actions"><button class="btn primary sm" type="button" id="btnOrgSave">Сохранить организацию</button><span class="grow"></span><button class="btn sm danger" type="button" id="btnOrgDel" hidden>Удалить организацию</button></div>
+        </fieldset>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Карточка открывается отдельным окном поверх списка в «Реквизитах» -->
+<div class="overlay" id="ovSupEdit" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="supFormTitle">
+    <div class="sh-head"><h2 id="supFormTitle">Поставщик</h2><button class="x" type="button" data-close aria-label="Закрыть">×</button></div>
+    <div class="sh-body">
+      <form id="supForm" novalidate>
+        <fieldset>
+          <div class="grid">
+            <div class="f wide"><label for="s-name">Название как в платёжке</label><input id="s-name" autocomplete="off"></div>
+            <div class="f"><label for="s-inn">ИНН</label><input id="s-inn" class="mono" readonly></div>
+            <div class="f"><label for="s-kpp">КПП</label><input id="s-kpp" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f"><label for="s-acc">Расчётный счёт</label><input id="s-acc" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f"><label for="s-bik">БИК</label><input id="s-bik" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f"><label for="s-corr">Корр. счёт</label><input id="s-corr" class="mono" inputmode="numeric" autocomplete="off"></div>
+            <div class="f"><label for="s-bank">Банк</label><input id="s-bank" autocomplete="off"></div>
+            <div class="f"><label for="s-city">Город банка</label><input id="s-city" autocomplete="off"></div>
+            <div class="f"><label for="s-subject">Оплата за…</label><input id="s-subject" autocomplete="off"></div>
+            <div class="f"><label for="s-word">Документ в назначении</label><input id="s-word" autocomplete="off"></div>
+            <div class="f"><label for="s-defer">Отсрочка, дней</label><input id="s-defer" class="mono" inputmode="numeric" placeholder="нет" autocomplete="off"><span class="hint">Срок = дата документа + отсрочка, если в документе срока нет</span></div>
+            <div class="f"><label for="s-contract">Договор в назначении</label><input id="s-contract" autocomplete="off" placeholder="№ 3831/180918-КЛ от 18.09.2018"></div>
+          </div>
+          <div id="supErrs"></div>
+          <div id="supHist"></div>
+          <div class="actions"><button class="btn primary sm" type="button" id="btnSupSave">Сохранить поставщика</button></div>
+        </fieldset>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Выгрузка -->
+<div class="overlay" id="ovExp" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="expTitle">
+    <div class="sh-head"><h2 id="expTitle">Выгрузка в банк</h2><button class="x" type="button" data-close aria-label="Закрыть">×</button></div>
+    <div class="sh-body" id="expBody">
+      <div class="payer" id="e-payer"></div>
+      <input type="hidden" id="e-org">
+      <div class="grid">
+        <div class="f"><label for="e-date">Дата платёжек</label><input id="e-date" type="date"></div>
+        <div class="f"><label for="e-no">Первый номер</label><input id="e-no" class="mono" inputmode="numeric"></div>
+      </div>
+      <div id="expGroups" class="list"></div>
+      <div class="total" id="expTotal"></div>
+    </div>
+    <div class="sh-body" id="expDone" hidden></div>
+    <div class="sh-foot">
+      <span class="grow"></span>
+      <button class="btn" type="button" data-close>Закрыть</button>
+      <button class="btn primary" type="button" id="btnDownload">Скачать файл для банка</button>
+    </div>
+  </div>
+</div>
+
+<!-- Документы из ЭДО: архив Диадока разбирается прямо в браузере, без Claude -->
+<div class="overlay" id="ovEdo" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="edoTitle">
+    <div class="sh-head"><h2 id="edoTitle">Добавить из ЭДО</h2><button class="x" type="button" data-close aria-label="Закрыть">×</button></div>
+    <div class="sh-body">
+      <details class="howscan">
+        <summary>Как скачать из Диадока</summary>
+        <ol class="howto">
+          <li>Диадок → «Входящие» → отметьте документы (галочка в шапке списка — все на странице).</li>
+          <li>«Скачать» → <b>«Документ в исходном формате»</b> — получится ZIP-архив.</li>
+          <li>Выберите этот архив здесь. Можно и отдельные XML-файлы.</li>
+        </ol>
+      </details>
+      <label class="drop" for="edoFiles">
+        <b>Выбрать архив или XML</b>
+        <span>Документы попадут в кабинет нужного ИП по ИНН покупателя. Транспортные накладные, служебные файлы, дубли и уже оплаченные — пропускаются.</span>
+        <input type="file" id="edoFiles" multiple accept=".zip,.xml,application/zip,text/xml,application/xml">
+      </label>
+      <div class="pending" id="edoStatus"></div>
+      <div class="edolist" id="edoList"></div>
+      <details class="edoskip" id="edoSkipBox" hidden><summary id="edoSkipSum"></summary><ul class="scanlist" id="edoSkip"></ul></details>
+    </div>
+    <div class="sh-foot">
+      <span class="grow" id="edoTotal"></span>
+      <button class="btn" type="button" data-close>Закрыть</button>
+      <button class="btn primary" type="button" id="btnEdoAdd" disabled>Добавить</button>
+    </div>
+  </div>
+</div>
+
+<!-- Сканы и файлы на разбор: уходят в закрытый репозиторий platezhki-inbox, Claude разбирает их на личном ПК -->
+<div class="overlay" id="ovScan" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="scanTitle">
+    <div class="sh-head"><h2 id="scanTitle">Добавить документы</h2><button class="x" type="button" data-close aria-label="Закрыть">×</button></div>
+    <div class="sh-body">
+      <div class="payer" id="scanOrg"></div>
+      <details class="howscan">
+        <summary>Как отсканировать на iPhone</summary>
+        <ol class="howto">
+          <li>Откройте «Файлы» → вкладка «Обзор» → «…» вверху → <b>«Сканировать документы»</b>. Или «Заметки» → скрепка → «Сканировать документы».</li>
+          <li>Наведите на лист: сканер сам найдёт края и снимет. Снимите все страницы документа подряд → «Сохранить».</li>
+          <li>Вернитесь сюда → «Выбрать файлы» → выберите сохранённый PDF.</li>
+        </ol>
+      </details>
+      <label class="drop" for="scanFiles">
+        <b>Выбрать файлы</b>
+        <span>PDF, фото, архив Диадока (ZIP), счёт Excel. Можно несколько сразу.</span>
+        <input type="file" id="scanFiles" multiple accept="application/pdf,image/*,.zip,.xml,.xls,.xlsx,.csv">
+      </label>
+      <ul class="scanlist" id="scanList" hidden></ul>
+      <div class="chips" role="group" aria-label="Пометки">
+        <button type="button" class="chip" id="tagUrgent" aria-pressed="false">Срочно</button>
+        <button type="button" class="chip" id="tagReq" aria-pressed="false">Только для реквизитов</button>
+      </div>
+      <div class="f wide"><label for="scanNote">Свой комментарий (необязательно)</label><input id="scanNote" autocomplete="off"></div>
+      <div class="banner bad" id="scanErr" hidden></div>
+      <div class="pending" id="scanPending"></div>
+    </div>
+    <div class="sh-foot">
+      <span class="grow"></span>
+      <button class="btn" type="button" data-close>Закрыть</button>
+      <button class="btn primary" type="button" id="btnUpload" disabled>Отправить на разбор</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="core.js?v=R6.4"></script>
+<script>
+(() => {
+"use strict";
+// Гостевая версия (папка /demo/ на сайте): вымышленные данные из demo.json, хранение только в этом браузере.
+// Свои ключи localStorage — ключ GitHub рабочего трекера с того же сайта демо не видит и не использует.
+const DEMO = /\/demo\//.test(location.pathname);
+const LSP = DEMO ? "platezhki.demo." : "platezhki.";
+const C = window.Core;
+const { digits, ru, ruShort, human, diff, today, kop, rub, rubIn, plural, sum, groupBy, TYPES, SOURCES, VATS, WD, DEFAULT_DAYS } = C;
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const F = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+// iPhone не всегда слушает user-scalable=no — блокируем жест «щипок» (масштаб двумя пальцами)
+["gesturestart", "gesturechange", "gestureend"].forEach(t => document.addEventListener(t, e => e.preventDefault(), { passive: false }));
+
+const S = { data: null, st: "open", org: "", q: "", edit: null, vatTouched: false, payTouched: false, dupOk: false, orgEdit: null, supEdit: null, exp: null };
+const FS = { handle: null, lastMod: 0, dirty: false, name: "", savedAt: "", chain: Promise.resolve(), canFS: "showOpenFilePicker" in window };
+
+/* ---------- файл данных ---------- */
+function idb(){ return new Promise((res, rej) => { const r = indexedDB.open("platezhki", 1); r.onupgradeneeded = () => r.result.createObjectStore("kv"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+async function idbGet(k){ try { const db = await idb(); return await new Promise(res => { const t = db.transaction("kv").objectStore("kv").get(k); t.onsuccess = () => res(t.result); t.onerror = () => res(null); }); } catch { return null; } }
+async function idbSet(k, v){ try { const db = await idb(); db.transaction("kv", "readwrite").objectStore("kv").put(v, k); } catch {} }
+
+function normalize(d){
+  if (!d || typeof d !== "object" || !Array.isArray(d.docs)) throw new Error("shape");
+  d.orgs = Array.isArray(d.orgs) ? d.orgs : []; d.suppliers = Array.isArray(d.suppliers) ? d.suppliers : []; d.version = d.version || 1;
+  return d;
+}
+function useData(d, name){ S.data = normalize(d); FS.name = name || "tracker.json"; S.org = lsGet("org") || ""; $("#openCard").hidden = true; $("#main").hidden = false;
+  ["btnExport","btnAdd","btnEdo"].forEach(id => F(id).disabled = false); render(); renderFileBar(); }
+async function loadHandle(h){
+  if ((await h.queryPermission({ mode: "readwrite" })) !== "granted" && (await h.requestPermission({ mode: "readwrite" })) !== "granted") { toast("Без разрешения на запись файл не открыть"); return; }
+  const f = await h.getFile();
+  let d; try { d = JSON.parse(await f.text()); } catch { toast("Файл повреждён: это не JSON"); return; }
+  try { FS.handle = h; FS.lastMod = f.lastModified; FS.dirty = false; useData(d, f.name); idbSet("handle", h); }
+  catch { toast("Это не файл трекера: нет списка документов"); }
+}
+F("btnOpen").onclick = async () => {
+  if (!FS.canFS) return F("fileInput").click();
+  try { const [h] = await window.showOpenFilePicker({ types: [{ description: "Данные трекера", accept: { "application/json": [".json"] } }] }); await loadHandle(h); }
+  catch (e) { if (e && e.name !== "AbortError") toast("Не удалось открыть файл"); }
+};
+F("fileInput").onchange = async e => { const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  try { useData(JSON.parse(await f.text()), f.name); } catch { toast("Это не файл трекера"); } };
+(async () => {
+  if (!FS.canFS){ F("fsNote").hidden = false; return; }
+  const h = await idbGet("handle");
+  if (h){ const b = F("btnReopen"); b.hidden = false; b.textContent = "Открыть " + h.name; if (LOCAL){ b.classList.add("primary"); F("btnOpen").classList.remove("primary"); } b.onclick = () => loadHandle(h).catch(() => toast("Файл не найден — выберите его заново")); }
+})();
+
+/* ---------- хранение на GitHub: без GitHub Desktop, с любого устройства ---------- */
+// Черновик (папка /dev/ на сайте) работает с тестовой копией данных в ветке sandbox
+// api можно подменить только для проверки на локальной имитации GitHub (ключ platezhki.gh.api в localStorage)
+const GH = { on: false, token: "", owner: "Gargauni", repo: "platezhki", path: "data/tracker.json", api: lsGet("gh.api") || "https://api.github.com",
+  branch: /\/dev\//.test(location.pathname) ? "sandbox" : "main", sha: "", base: null, timer: 0, busy: false, err: "" };
+const clone = x => JSON.parse(JSON.stringify(x));
+const b64enc = str => { const b = new TextEncoder().encode(str); let s = ""; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(s); };
+const b64dec = b64 => new TextDecoder().decode(Uint8Array.from(atob(String(b64).replace(/\s/g, "")), c => c.charCodeAt(0)));
+const ghHeaders = () => ({ Accept: "application/vnd.github+json", Authorization: "Bearer " + GH.token, "X-GitHub-Api-Version": "2022-11-28" });
+function gh(method, url, body, repo){
+  return fetch(GH.api + "/repos/" + GH.owner + "/" + (repo || GH.repo) + url, { method, cache: "no-store",
+    headers: { ...ghHeaders(), ...(body ? { "Content-Type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined });
+}
+const ghFail = status => Object.assign(new Error("github " + status), { status });
+async function ghFetch(){
+  const r = await gh("GET", "/contents/" + GH.path + "?ref=" + encodeURIComponent(GH.branch));
+  if (!r.ok) throw ghFail(r.status);
+  const j = await r.json(); let content = j.content;
+  if (!content && j.git_url){ const b = await fetch(j.git_url, { headers: ghHeaders(), cache: "no-store" }); if (!b.ok) throw ghFail(b.status); content = (await b.json()).content; }  // файл больше 1 МБ
+  return { sha: j.sha, data: normalize(JSON.parse(b64dec(content))) };
+}
+const ghWhy = e => e && e.status === 401 ? "Ключ не подходит или отозван. Создайте новый на github.com и войдите заново."
+  : e && (e.status === 403 || e.status === 404) ? `Нет доступа к ${GH.owner}/${GH.repo} (ветка ${GH.branch}). Проверьте, что ключ выдан на этот репозиторий с правом «Contents: Read and write».`
+  : "Нет связи с GitHub. Проверьте интернет и попробуйте ещё раз.";
+async function ghLogin(token){
+  GH.token = token.trim(); F("ghErr").hidden = true; F("btnGh").disabled = true; F("btnGh").textContent = "Загружаю…";
+  try {
+    const r = await ghFetch();
+    GH.on = true; GH.sha = r.sha; GH.base = clone(r.data); GH.err = ""; lsSet("gh.token", GH.token); F("btnScan").hidden = false;
+    FS.dirty = false; FS.savedAt = ""; useData(r.data, "GitHub");
+  } catch (e) {
+    F("ghErr").textContent = ghWhy(e); F("ghErr").hidden = false;
+    if (e.status === 401) try { localStorage.removeItem("platezhki.gh.token"); } catch {}
+  }
+  F("btnGh").disabled = false; F("btnGh").textContent = "Войти";
+}
+F("ghForm").addEventListener("submit", e => { e.preventDefault(); const t = F("ghToken").value; if (t.trim()) ghLogin(t); else F("ghToken").focus(); });
+// Сохранение: целиком файл, с проверкой версии (sha). Если файл успели изменить с другого устройства — сливаем и пробуем снова.
+async function ghSave(){
+  if (!GH.on || !FS.dirty) return;
+  GH.busy = true; renderFileBar();
+  try {
+    for (let attempt = 0; attempt < 4; attempt++){
+      const snap = clone(S.data);
+      const r = await gh("PUT", "/contents/" + GH.path, { branch: GH.branch, sha: GH.sha,
+        message: "Трекер: изменения " + new Date().toLocaleString("ru-RU"), content: b64enc(JSON.stringify(snap, null, 2) + "\n") });
+      if (r.ok){
+        GH.sha = (await r.json()).content.sha; GH.base = snap; GH.err = "";
+        FS.savedAt = new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+        FS.dirty = JSON.stringify(S.data) !== JSON.stringify(snap);   // пока сохраняли, могли нажать ещё что-то
+        if (FS.dirty) GH.timer = setTimeout(() => { FS.chain = FS.chain.then(ghSave); }, 300);
+        return;
+      }
+      if (r.status !== 409 && r.status !== 422) throw ghFail(r.status);
+      await ghMerge();
+    }
+    throw ghFail(409);
+  } catch (e) { GH.err = ghWhy(e); }
+  finally { GH.busy = false; renderFileBar(); }
+}
+// Подтянуть свежую версию; свои несохранённые изменения не теряем — сливаем
+async function ghMerge(){
+  const r = await ghFetch();
+  if (r.sha === GH.sha) return false;
+  if (FS.dirty){
+    const m = C.merge3(GH.base, S.data, r.data); S.data = m.data;
+    if (m.conflicts.length) toast("Данные меняли на другом устройстве — объединил. Оставил ваши значения: " + m.conflicts.slice(0, 3).join("; "));
+  } else S.data = r.data;
+  GH.sha = r.sha; GH.base = clone(r.data); render();
+  return true;
+}
+function ghRefresh(quiet){
+  if (!GH.on) return Promise.resolve();
+  return (FS.chain = FS.chain.then(async () => {
+    try { if (await ghMerge() && !quiet) toast("Данные обновлены"); GH.err = ""; } catch (e) { GH.err = ghWhy(e); }
+    renderFileBar();
+  }));
+}
+// Первое нажатие — предупреждение, второе (в течение 4 секунд) — выход
+let logoutArmed = 0;
+F("btnLogout").addEventListener("click", () => {
+  if (Date.now() - logoutArmed > 4000){
+    logoutArmed = Date.now(); F("btnLogout").classList.add("armed");
+    F("logoutText").textContent = "Нажмите ещё раз, чтобы выйти";
+    setTimeout(() => { if (Date.now() - logoutArmed >= 4000){ F("btnLogout").classList.remove("armed"); F("logoutText").textContent = "Выйти"; } }, 4100);
+    return;
+  }
+  ghLogout();
+});
+function ghLogout(){
+  if (FS.dirty && !confirm("Есть несохранённые изменения. Всё равно выйти?")) return;
+  try { localStorage.removeItem("platezhki.gh.token"); } catch {}
+  location.reload();
+}
+/* ---------- сканы на разбор ---------- */
+// Сканы нельзя хранить рядом с данными (правило: никаких сканов в репозитории platezhki),
+// поэтому они уходят в отдельный закрытый репозиторий platezhki-inbox, папка inbox/ГГГГ-ММ-ДД/.
+// Claude на личном ПК забирает их, разбирает и удаляет.
+const INBOX = { repo: "platezhki-inbox", branch: "main", files: [] };
+const fileB64 = f => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1] || ""); r.onerror = () => rej(r.error); r.readAsDataURL(f); });
+const kb = n => n < 1048576 ? Math.max(1, Math.round(n / 1024)) + " КБ" : (n / 1048576).toFixed(1).replace(".", ",") + " МБ";
+const safeName = s => String(s).replace(/[\\/:*?"<>|#%\r\n\t]+/g, " ").replace(/\s+/g, " ").trim().slice(-80) || "файл";
+const inboxWhy = e => e && (e.status === 403 || e.status === 404) ? "Нет доступа к репозиторию platezhki-inbox. Добавьте его в ключ на github.com (Repository access → platezhki-inbox, Contents: Read and write)."
+  : e && e.status === 409 ? "Репозиторий platezhki-inbox пустой. Создайте в нём README (Add file → Create new file) и повторите."
+  : ghWhy(e);
+F("btnScan").onclick = () => {
+  const o = orgById(S.org) || {};
+  F("scanOrg").innerHTML = `<b>Для: ${esc(o.name || "—")}</b><span>Документы попадут в кабинет этого ИП. Сменить — закройте окно и выберите другую карточку ИП.</span>`;
+  INBOX.files = []; F("scanFiles").value = ""; resetTags(); F("scanNote").value = ""; F("scanErr").hidden = true;
+  renderScanList(); openSheet("ovScan"); loadPending();
+};
+// Пометки-кнопки: «Срочно» и «Только для реквизитов» взаимоисключающие — реквизиты не платим
+const pressed = id => F(id).getAttribute("aria-pressed") === "true";
+function resetTags(){ ["tagUrgent", "tagReq"].forEach(id => F(id).setAttribute("aria-pressed", "false")); }
+["tagUrgent", "tagReq"].forEach(id => F(id).addEventListener("click", () => {
+  const on = !pressed(id); resetTags(); F(id).setAttribute("aria-pressed", String(on));
+}));
+F("scanFiles").addEventListener("change", e => { INBOX.files = [...e.target.files].map(f => ({ f, st: "" })); renderScanList(); });
+function renderScanList(){
+  const l = F("scanList"); l.hidden = !INBOX.files.length;
+  l.innerHTML = INBOX.files.map(x => `<li><span>${esc(x.f.name)}</span><span class="st">${esc(x.st || kb(x.f.size))}</span></li>`).join("");
+  F("btnUpload").disabled = !INBOX.files.length;
+}
+async function loadPending(){
+  const p = F("scanPending"); p.textContent = "Проверяю, что ждёт разбора…";
+  try {
+    const r = await gh("GET", "/git/trees/" + INBOX.branch + "?recursive=1", null, INBOX.repo);
+    if (!r.ok) throw ghFail(r.status);
+    const files = (await r.json()).tree.filter(t => t.type === "blob" && t.path.startsWith("inbox/") && !t.path.endsWith(".txt"));
+    p.innerHTML = files.length ? `<b>Ждут разбора: ${files.length}</b>` + files.slice(-8).map(t => `<span>${esc(t.path.split("/").slice(1).join(" · "))}</span>`).join("")
+      : "Очередь разбора пуста.";
+  } catch (e) { p.textContent = inboxWhy(e); }
+}
+// Все выбранные файлы — одним коммитом через Git Data API (подходит и для файлов больше 1 МБ)
+F("btnUpload").onclick = async () => {
+  const o = orgById(S.org) || {}, note = F("scanNote").value.trim(), req = pressed("tagReq"), urgent = pressed("tagUrgent");
+  const now = new Date(), day = C.iso(now), hhmm = now.toTimeString().slice(0, 8).replace(/:/g, "");
+  const tag = C.orgShort(o.name || "").replace(/\s+/g, "") + (req ? "_РЕКВИЗИТЫ" : "") + (urgent ? "_СРОЧНО" : "");
+  F("btnUpload").disabled = true; F("scanErr").hidden = true;
+  try {
+    const tree = [];
+    for (const x of INBOX.files){
+      x.st = "загружаю…"; renderScanList();
+      const r = await gh("POST", "/git/blobs", { content: await fileB64(x.f), encoding: "base64" }, INBOX.repo);
+      if (!r.ok) throw ghFail(r.status);
+      tree.push({ path: `inbox/${day}/${hhmm}_${tag}_${safeName(x.f.name)}`, mode: "100644", type: "blob", sha: (await r.json()).sha });
+      x.st = "✓"; renderScanList();
+    }
+    const info = `Организация: ${o.name || ""} (${o.inn || ""})\n` + (req ? "Только для реквизитов — не платить\n" : "") + (urgent ? "Срочно\n" : "") + (note ? "Комментарий: " + note + "\n" : "")
+      + "Файлы:\n" + INBOX.files.map(x => "- " + x.f.name).join("\n") + "\n";
+    tree.push({ path: `inbox/${day}/${hhmm}_${tag}_заметка.txt`, mode: "100644", type: "blob", content: info });
+    for (let attempt = 0; ; attempt++){
+      const ref = await gh("GET", "/git/ref/heads/" + INBOX.branch, null, INBOX.repo);
+      if (!ref.ok) throw ghFail(ref.status);
+      const head = (await ref.json()).object.sha;
+      const base = await gh("GET", "/git/commits/" + head, null, INBOX.repo); if (!base.ok) throw ghFail(base.status);
+      const t = await gh("POST", "/git/trees", { base_tree: (await base.json()).tree.sha, tree }, INBOX.repo); if (!t.ok) throw ghFail(t.status);
+      const c = await gh("POST", "/git/commits", { message: `Сканы: ${INBOX.files.length} шт. — ${C.orgShort(o.name || "")}${req ? " (реквизиты)" : ""}${urgent ? " (срочно)" : ""}`, tree: (await t.json()).sha, parents: [head] }, INBOX.repo);
+      if (!c.ok) throw ghFail(c.status);
+      const u = await gh("PATCH", "/git/refs/heads/" + INBOX.branch, { sha: (await c.json()).sha }, INBOX.repo);
+      if (u.ok) break;
+      if (u.status !== 422 || attempt > 2) throw ghFail(u.status);   // кто-то успел загрузить одновременно — повторяем
+    }
+    toast(`Отправлено на разбор: ${INBOX.files.length} ${plural(INBOX.files.length, "файл", "файла", "файлов")}`);
+    INBOX.files = []; F("scanFiles").value = ""; F("scanNote").value = ""; resetTags(); renderScanList(); loadPending();
+  } catch (e) {
+    F("scanErr").textContent = inboxWhy(e); F("scanErr").hidden = false;
+    INBOX.files.forEach(x => { if (x.st === "загружаю…") x.st = "ошибка"; }); renderScanList();
+  }
+};
+
+/* ---------- обновление: телефон долго держит старую копию страницы, поэтому версию проверяем сами ---------- */
+const APP_VERSION = (document.querySelector('meta[name="app-version"]') || {}).content || "";
+async function checkUpdate(){
+  if (location.protocol === "file:" || !APP_VERSION) return;   // на рабочем ПК (файл) обновляет GitHub Desktop
+  try {
+    const t = await (await fetch(location.pathname + "?check=" + Date.now(), { cache: "no-store" })).text();
+    const m = t.match(/<meta name="app-version" content="([^"]+)"/);
+    if (!m || m[1] === APP_VERSION) return;
+    F("updVer").textContent = m[1]; F("updBar").hidden = false;
+    // новый адрес (?v=…) — браузер не возьмёт копию из кэша
+    F("btnUpd").onclick = () => location.replace(location.pathname + "?v=" + encodeURIComponent(m[1]) + location.hash);
+  } catch {}
+}
+F("appVer").textContent = APP_VERSION ? "Версия " + APP_VERSION : "";
+checkUpdate();
+document.addEventListener("visibilitychange", () => { if (!document.hidden) checkUpdate(); });
+
+document.addEventListener("visibilitychange", () => { if (!document.hidden) ghRefresh(); });
+setInterval(() => { if (GH.on && !document.hidden && !FS.dirty) ghRefresh(); }, 120000);
+// Открыто как файл с диска (рабочий ПК через GitHub Desktop) — главный способ «Открыть tracker.json», вход по ключу — запасной
+const LOCAL = location.protocol === "file:";
+if (LOCAL){
+  F("openTitle").textContent = "Откройте файл данных";
+  F("openLead").innerHTML = 'Все документы, реквизиты и статусы хранятся в файле <span class="mono">data/tracker.json</span> в папке проекта. Откройте его, и изменения будут сохраняться прямо в него.';
+  const det = $("#openCard details"), gh = [F("ghForm"), F("btnGh").closest(".actions"), F("ghErr")];
+  det.querySelector("summary").textContent = "Войти по ключу GitHub (без GitHub Desktop)";
+  gh.forEach(el => det.appendChild(el));                         // форма ключа — внутрь раскрывающегося блока
+  F("openCard").insertBefore(det.querySelector(".actions"), det); // кнопки файла — наверх
+  F("openCard").insertBefore(F("fsNote"), det);
+  F("btnOpen").classList.add("primary");
+
+}
+(() => { if (DEMO) return demoStart(); const t = lsGet("gh.token"); if (t) ghLogin(t); else if (!LOCAL) setTimeout(() => F("ghToken").focus(), 50); })();
+// Демо: сохранённая в браузере копия или свежая из demo.json; даты сдвигаются так, чтобы demoAnchor стал сегодняшним днём
+async function demoStart(){
+  await Promise.resolve();   // дождаться конца скрипта: рисовать экран можно только после всех объявлений
+  F("openCard").hidden = true;
+  let d = null;
+  try { d = JSON.parse(lsGet("data") || "null"); } catch {}
+  if (!d){
+    try { d = await (await fetch("demo.json", { cache: "no-store" })).json(); }
+    catch { F("openCard").hidden = false; F("openLead").textContent = "Не удалось загрузить демо-данные. Обновите страницу."; return; }
+    const shift = C.diff(d.demoAnchor || today(), today());
+    const mv = v => C.validISO(v) ? C.addDays(v, shift) : v;
+    d.docs.forEach(x => ["date", "due", "paidAt", "exportedAt", "createdAt"].forEach(k => { x[k] = mv(x[k]); }));
+    d.suppliers.forEach(x => { x.updatedAt = mv(x.updatedAt); });
+    d.demoAnchor = today();
+  }
+  useData(d, "демо");
+}
+
+function persist(){
+  if (DEMO){ lsSet("data", JSON.stringify(S.data)); renderFileBar(); return; }
+  FS.dirty = true; renderFileBar();
+  if (GH.on){ clearTimeout(GH.timer); GH.timer = setTimeout(() => { FS.chain = FS.chain.then(ghSave); }, 1200); return; }
+  if (!FS.handle) return;
+  FS.chain = FS.chain.then(async () => {
+    try {
+      const w = await FS.handle.createWritable(); await w.write(JSON.stringify(S.data, null, 2) + "\n"); await w.close();
+      FS.lastMod = (await FS.handle.getFile()).lastModified; FS.dirty = false;
+      FS.savedAt = new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+    } catch { toast("Не удалось записать файл. Изменения пока только на экране."); }
+    renderFileBar();
+  });
+}
+function renderFileBar(){
+  const b = F("filebar"); b.hidden = !S.data; if (!S.data) return;
+  if (DEMO){
+    b.classList.remove("dirty");
+    b.innerHTML = `<span><span class="dot"></span><b>Демо-версия</b> · все организации, поставщики и суммы вымышлены, изменения сохраняются только в этом браузере</span><button class="btn sm" type="button" id="btnDemoReset">Сбросить демо</button>`;
+    F("btnDemoReset").onclick = () => { try { localStorage.removeItem(LSP + "data"); } catch {} location.reload(); };
+    return;
+  }
+  if (GH.on){
+    const draft = GH.branch !== "main";
+    b.classList.toggle("dirty", !!GH.err || FS.dirty);
+    b.innerHTML = `<span><span class="dot"></span>Данные: GitHub${draft ? " · <b>ЧЕРНОВИК, тестовая копия (ветка " + esc(GH.branch) + ")</b>" : ""} · ${GH.busy ? "сохраняю…" : FS.dirty ? "сохраню через секунду…" : FS.savedAt ? "сохранено в " + FS.savedAt : "загружено"}</span>`
+      + (GH.err ? `<span style="color:var(--bad)">${esc(GH.err)}</span><button class="btn sm" type="button" id="btnGhRetry">Повторить</button>` : "");
+    F("btnLogout").hidden = false;   // выход — в «Настройках»
+    const rb = F("btnGhRetry"); if (rb) rb.onclick = () => { GH.err = ""; if (FS.dirty) FS.chain = FS.chain.then(ghSave); else ghRefresh(); renderFileBar(); };
+    return;
+  }
+  b.classList.toggle("dirty", FS.dirty && !FS.handle);
+  if (FS.handle) b.innerHTML = `<span><span class="dot"></span>Данные: <span class="mono">${esc(FS.name)}</span>${FS.savedAt ? " · сохранено в "+FS.savedAt : ""}</span><span>Не забудьте Commit и Push в GitHub Desktop после работы.</span>`;
+  else b.innerHTML = FS.dirty ? `<span><span class="dot"></span>Есть несохранённые изменения.</span><button class="btn sm" type="button" id="btnSaveFile">Скачать tracker.json</button><span>Замените им data/tracker.json в папке проекта.</span>`
+    : `<span><span class="dot"></span>Данные: <span class="mono">${esc(FS.name)}</span> (только чтение в этом браузере)</span>`;
+  const sb = F("btnSaveFile"); if (sb) sb.onclick = () => { downloadBlob(new Blob([JSON.stringify(S.data, null, 2) + "\n"], { type: "application/json" }), "tracker.json"); FS.dirty = false; renderFileBar(); };
+}
+window.addEventListener("focus", async () => {
+  if (!FS.handle || FS.dirty) return;
+  try { const f = await FS.handle.getFile(); if (f.lastModified > FS.lastMod){ S.data = normalize(JSON.parse(await f.text())); FS.lastMod = f.lastModified; render(); toast("Данные обновлены из файла"); } } catch {}
+});
+window.addEventListener("beforeunload", e => { if (FS.dirty && (GH.on || !FS.handle)){ e.preventDefault(); e.returnValue = ""; } });
+function downloadBlob(blob, name){ const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); }
+
+/* ---------- помощники ---------- */
+const orgs = () => S.data.orgs, sups = () => S.data.suppliers, docs = () => S.data.docs;
+const orgById = id => C.orgById(S.data, id);
+const supOf = inn => C.supByInn(S.data, inn);
+const stOf = d => C.stOf(S.data, d);
+const dueOf = d => C.dueOf(S.data, d);
+const payDays = id => C.payDays(S.data, id);
+let toastT;
+function toast(msg){ const t = F("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 2600); }
+async function copy(text, label){
+  try { await navigator.clipboard.writeText(text); toast(label + " — скопировано"); }
+  catch { const ta = document.createElement("textarea"); ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0"; document.body.appendChild(ta); ta.select();
+    let ok = false; try { ok = document.execCommand("copy"); } catch {} ta.remove(); toast(ok ? label + " — скопировано" : "Не удалось скопировать"); }
+}
+// Каждое открытое окно — поверх предыдущих (меню → раздел → подтверждение)
+let sheetZ = 20;
+function openSheet(id){ const el = F(id); el.style.zIndex = ++sheetZ; el.hidden = false; document.body.style.overflow = "hidden"; }
+function closeSheet(el){ el.hidden = true; if (!$$(".overlay").some(o => !o.hidden)) document.body.style.overflow = ""; }
+$$(".overlay").forEach(ov => ov.addEventListener("click", e => { if (e.target === ov || e.target.closest("[data-close]")) closeSheet(ov); }));
+document.addEventListener("keydown", e => { if (e.key === "Escape"){ const o = $$(".overlay").filter(x => !x.hidden).pop(); if (o) closeSheet(o); } });
+const newId = () => "d" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+// Запоминаем выбранный кабинет — только удобство, без него всё работает
+function lsGet(k){ try { return localStorage.getItem(LSP + k); } catch { return null; } }
+function lsSet(k, v){ try { localStorage.setItem(LSP + k, v); } catch {} }
+
+/* ---------- организации: у каждой свой цвет ---------- */
+// [основной, фон, текст на основном, цвет текста-акцента] для светлого и тёмного режима
+const ORG_COLORS = {
+  classic: [
+    { light: ["#2A3BA0", "#E3E6F7", "#FFFFFF", "#2A3BA0"], dark: ["#9AA6FF", "#222949", "#0F131A", "#9AA6FF"] },   // синий
+    { light: ["#0E6B57", "#DCF1EA", "#FFFFFF", "#0E6B57"], dark: ["#5CCFB0", "#123A30", "#0F131A", "#5CCFB0"] },   // зелёный
+    { light: ["#9A4A12", "#F7E7DA", "#FFFFFF", "#9A4A12"], dark: ["#F0A27A", "#3D2216", "#0F131A", "#F0A27A"] },
+    { light: ["#7A2E8E", "#F1E3F5", "#FFFFFF", "#7A2E8E"], dark: ["#D7A0E6", "#36203D", "#0F131A", "#D7A0E6"] },
+    { light: ["#1F6F8B", "#DDEEF4", "#FFFFFF", "#1F6F8B"], dark: ["#6CC0DE", "#163845", "#0F131A", "#6CC0DE"] }    // бирюзовый
+  ],
+  // Порядок = порядок организаций: 1-я Blue, 2-я Orange, дальше запас для новых ИП/ООО
+  ocean: [
+    { light: ["#004E72", "#DCEBF2", "#FFFFFF", "#004E72"], dark: ["#5FB3DA", "#123F55", "#092634", "#7CC3E4"] },   // Blue
+    { light: ["#FF6E42", "#FFE6DD", "#092634", "#B9431F"], dark: ["#FF6E42", "#4A2A22", "#092634", "#FF8D69"] },   // Orange
+    { light: ["#1F7A7A", "#DDEFEF", "#FFFFFF", "#1F7A7A"], dark: ["#5CC4C4", "#14403F", "#092634", "#7AD3D3"] },   // Teal — морская волна
+    { light: ["#E3A72F", "#FBEFD4", "#092634", "#8A5F00"], dark: ["#E9B44C", "#4A3A17", "#092634", "#F0C46E"] },   // Gold — песок
+    { light: ["#4B5A9B", "#E4E7F4", "#FFFFFF", "#4B5A9B"], dark: ["#9DA9E0", "#262E52", "#092634", "#B3BCE8"] }    // Slate — сумеречный синий
+  ]
+};
+const darkMQ = window.matchMedia("(prefers-color-scheme: dark)");
+const theme = () => ORG_COLORS[S.theme] ? S.theme : "classic";
+const orgColor = id => { const set = ORG_COLORS[theme()], i = Math.max(0, orgs().findIndex(o => o.id === id)); return set[i % set.length][darkMQ.matches ? "dark" : "light"]; };
+darkMQ.addEventListener("change", () => render());
+S.theme = lsGet("theme") || "classic";
+// Темы 2026: первый цвет — Н.В., второй — В.И., дальше запас
+ORG_COLORS.teal = [
+  { light: ["#0F6E6E", "#D7EEEC", "#FFFFFF", "#0D6464"], dark: ["#4FD1C5", "#123B38", "#071514", "#6ADCD1"] },   // Transformative Teal
+  { light: ["#E2604A", "#FBE3DC", "#FFFFFF", "#B9432F"], dark: ["#FF8A73", "#46241D", "#071514", "#FF9C88"] },   // коралл
+  { light: ["#3B5BA9", "#E0E7F6", "#FFFFFF", "#3B5BA9"], dark: ["#8FA9EC", "#1F2A47", "#071514", "#A6BAF0"] },
+  { light: ["#B88A1B", "#F6ECD2", "#0E2A2A", "#7E5E0E"], dark: ["#E8BE55", "#3B3016", "#071514", "#F0CD78"] }
+];
+ORG_COLORS.graphite = [
+  { light: ["#5E6AD2", "#E6E8F8", "#FFFFFF", "#4B57C2"], dark: ["#8B93F0", "#23264A", "#08080A", "#A1A8F4"] },   // индиго Linear
+  { light: ["#D9822B", "#FAEBDB", "#FFFFFF", "#A65F14"], dark: ["#F2A14F", "#3E2A15", "#08080A", "#F6B474"] },   // янтарь
+  { light: ["#2F9E6E", "#DCF2E8", "#FFFFFF", "#22805A"], dark: ["#5CD6A0", "#16362A", "#08080A", "#7BE0B3"] },
+  { light: ["#C2417A", "#F7DFEA", "#FFFFFF", "#A8336A"], dark: ["#F07AAE", "#41192C", "#08080A", "#F497C0"] }
+];
+const THEME_NAMES = { classic: "Классика", ocean: "Океан", teal: "Бирюза", graphite: "Графит" };
+function applyTheme(){ if (theme() === "classic") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme = theme();
+  F("miThemeNow").textContent = THEME_NAMES[theme()]; renderThemeList(); }
+// Варианты темы с образцами цветов ИП: первые два — нынешние Н.В. и В.И.
+function renderThemeList(){
+  const mode = darkMQ.matches ? "dark" : "light";
+  F("themeList").innerHTML = Object.keys(ORG_COLORS).map(k => `<button type="button" class="th" role="radio" aria-checked="${theme() === k}" data-theme-id="${k}">
+    <span class="th-sw" aria-hidden="true">${ORG_COLORS[k].map(c => `<i style="background:${c[mode][0]}"></i>`).join("")}</span>
+    <b>${THEME_NAMES[k]}</b></button>`).join("");
+}
+F("themeList").addEventListener("click", e => { const b = e.target.closest("[data-theme-id]"); if (!b) return; S.theme = b.dataset.themeId; lsSet("theme", S.theme); applyTheme(); render(); });
+applyTheme();
+// Документ без orgId относится к первой организации (старые данные)
+const orgOf = d => d.orgId || (orgs()[0] || {}).id || "";
+function ensureOrg(){ if (!orgs().some(o => o.id === S.org)) S.org = (orgs()[0] || {}).id || ""; }
+function applyOrgColor(){ const [c, s, ink, txt] = orgColor(S.org), st = document.documentElement.style;
+  st.setProperty("--accent", c); st.setProperty("--accent-soft", s); st.setProperty("--accent-ink", ink); st.setProperty("--accent-text", txt); }
+
+/* ---------- главный экран ---------- */
+function render(){
+  if (!S.data) return;
+  ensureOrg(); applyOrgColor(); renderOrgTabs();
+  const org = orgById(S.org);
+  const base = docs().filter(d => orgOf(d) === S.org);
+  const open = base.filter(d => d.status !== "paid");
+  const pending = open.filter(d => d.status !== "bank");
+  const review = pending.filter(d => C.inReview(d));
+  const unpaid = pending.filter(d => !C.inReview(d));   // к оплате — без документов «на проверке»
+  const overdue = unpaid.filter(d => stOf(d) === "overdue");
+  const bank = open.filter(d => d.status === "bank");
+  const days = payDays(S.org);
+  const np = C.nextPay(days);
+  const groups = groupBy(unpaid, d => (d.orgId || "") + "|" + digits(d.supplierInn));
+  const orders = [...groups.values()].reduce((n, g) => n + C.pack(g, supOf(g[0].supplierInn)).length, 0);
+  const dayList = days.slice().sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map(d => WD[d]).join(" и ");
+  F("hTitle").innerHTML = org ? `<i aria-hidden="true"></i>${esc(org.name)}` : "Счета к оплате";
+  F("sub").textContent = (org && org.account ? "р/с …" + digits(org.account).slice(-4) + " · " + (org.bank || "").replace(/"/g, "") + " · " : "") + "платёжные дни " + dayList;
+  document.title = org ? C.orgShort(org.name) + " — счета к оплате" : "Счета к оплате";
+  // При нескольких ИП сумма и платёжный день уже на карточке кабинета — здесь только просрочки и «в банке»
+  const tabs = orgs().length > 1;
+  F("stats").innerHTML = `
+    ${tabs ? "" : `<div class="stat"><span class="k">К оплате</span><span class="v">${rub(sum(unpaid))} ₽<small>${unpaid.length} ${plural(unpaid.length, "документ", "документа", "документов")}</small></span></div>
+    <div class="stat pay"><span class="k">Платёжный день</span><span class="v">${esc(np === today() ? "сегодня" : human(np))}<small>${orders} ${plural(orders, "платёжка", "платёжки", "платёжек")}</small></span></div>`}
+    ${review.length ? `<div class="stat bad"><span class="k">Нужна проверка</span><span class="v">${rub(sum(review))} ₽<small>${review.length} шт. · в выгрузку не попадут</small></span></div>` : ""}
+    ${overdue.length ? `<div class="stat bad"><span class="k">Просрочено</span><span class="v">${rub(sum(overdue))} ₽<small>${overdue.length} шт.</small></span></div>` : ""}
+    ${bank.length ? `<div class="stat"><span class="k">Выгружены в банк</span><span class="v">${rub(sum(bank))} ₽<small>${bank.length} шт.</small></span></div>` : ""}`;
+  F("stats").hidden = !F("stats").textContent.trim();
+  const counts = { open: open.length, review: review.length, overdue: overdue.length, bank: bank.length, paid: base.length - open.length, all: base.length };
+  if (S.st === "review" && !review.length) S.st = "open";
+  F("chips").innerHTML = [["open","Не оплачены"], ...(review.length ? [["review","На проверке"]] : []), ["overdue","Просрочены"],["bank","В банке"],["paid","Оплачены"],["all","Все"]]
+    .map(([k, l]) => `<button type="button" class="chip" data-st="${k}" aria-pressed="${S.st === k}">${l}<b>${counts[k]}</b></button>`).join("");
+
+  const q = S.q.trim().toLowerCase();
+  const rows = base.filter(d => { const s = stOf(d);
+    if (S.st === "open" && s === "paid") return false;
+    if (S.st === "overdue" && s !== "overdue") return false;
+    if (S.st === "review" && s !== "review") return false;
+    if (S.st === "bank" && s !== "bank") return false;
+    if (S.st === "paid" && s !== "paid") return false;
+    if (q && ![d.supplierName, d.supplierInn, d.number, C.payNum(d)].join(" ").toLowerCase().includes(q)) return false;
+    return true; });
+  F("empty").hidden = docs().length > 0;
+  if (!docs().length){ F("list").innerHTML = ""; return; }
+  if (!rows.length){ F("list").innerHTML = `<p style="color:var(--muted);padding:8px 2px">${S.st === "open" ? "Всё оплачено." : "Ничего не найдено."}</p>`; return; }
+  const rank = { review: -1, overdue: 0, soon: 1, unpaid: 2, bank: 3, paid: 4 };
+  const g = groupBy(rows, d => (d.orgId || "") + "|" + digits(d.supplierInn) + "|" + (stOf(d) === "paid" ? "p" : stOf(d) === "bank" ? "b" : "o"));
+  const list = [...g.values()].map(items => {
+    items.sort((a, b) => rank[stOf(a)] - rank[stOf(b)] || (dueOf(a) || "9").localeCompare(dueOf(b) || "9") || (a.date || "").localeCompare(b.date || ""));
+    return { items, top: Math.min(...items.map(d => rank[stOf(d)])), due: items.map(d => dueOf(d) || "9").sort()[0], paidAt: items.map(d => d.paidAt || "").sort().pop() };
+  }).sort((a, b) => a.top - b.top || (a.top === 4 ? (b.paidAt || "").localeCompare(a.paidAt || "") : a.due.localeCompare(b.due)));
+  F("list").innerHTML = list.map(G => groupHTML(G.items)).join("");
+}
+// Карточки ИП над списком: к оплате, ближайший платёжный день, просрочки
+function renderOrgTabs(){
+  const nav = F("orgTabs"); nav.hidden = orgs().length < 2; if (nav.hidden) return;
+  nav.innerHTML = orgs().map(o => {
+    const pending = docs().filter(d => orgOf(d) === o.id && d.status === "unpaid");
+    const rev = pending.filter(d => C.inReview(d)).length, unpaid = pending.filter(d => !C.inReview(d));
+    const over = unpaid.filter(d => stOf(d) === "overdue").length, soon = unpaid.filter(d => stOf(d) === "soon").length;
+    const np = C.nextPay(payDays(o.id));
+    const n = C.exportPlan(S.data, o.id).orders.length;
+    const [c, s] = orgColor(o.id);
+    return `<button type="button" class="orgtab" data-org="${esc(o.id)}" aria-pressed="${S.org === o.id}" style="--oc:${c};--ocs:${s}">
+      <span class="on"><i aria-hidden="true"></i>${esc(C.orgShort(o.name))}</span>
+      <span class="amt">${rub(sum(unpaid))} ₽</span>
+      <span class="meta">${unpaid.length ? esc(np === today() ? "сегодня" : human(np)) + " · " + n + " " + plural(n, "платёжка", "платёжки", "платёжек") : "долгов нет"}${rev ? ` · <b>проверка ${rev}</b>` : over ? ` · <b>просрочено ${over}</b>` : soon ? ` · <b>срочно ${soon}</b>` : ""}</span>
+    </button>`; }).join("");
+}
+F("orgTabs").addEventListener("click", e => { const b = e.target.closest("[data-org]"); if (!b || b.dataset.org === S.org) return; S.org = b.dataset.org; lsSet("org", S.org); render(); });
+function groupHTML(items){
+  const d0 = items[0], sup = supOf(d0.supplierInn), state = stOf(d0);
+  const isOpen = state !== "paid" && state !== "bank";
+  // Документы «на проверке» стоят в группе поставщика, но в платёжку, сумму и «Оплачено» не входят
+  const rev = isOpen ? items.filter(d => C.inReview(d)) : [], pay = isOpen ? items.filter(d => !C.inReview(d)) : items;
+  const chunks = isOpen && pay.length ? C.pack(pay, sup) : [];
+  const probs = sup ? C.reqProblems(sup) : ["нет банковских реквизитов — добавьте их в «Реквизиты»"];
+  const name = (sup && sup.name) || d0.supplierName || "Поставщик не указан";
+  return `<div class="group" data-ids="${esc(pay.map(d => d.id).join(","))}">
+    <div class="g-head">
+      <div class="g-name">${esc(name)}<small class="mono">ИНН ${esc(digits(d0.supplierInn) || "—")}${sup && sup.deferDays ? ` · отсрочка ${sup.deferDays} дн.` : ""}</small></div>
+      <span class="g-sum">${rub(sum(pay.length ? pay : items))} ₽</span>
+      ${isOpen && pay.length ? `<div class="g-acts"><button class="btn sm" type="button" data-g="purpose">Назначение</button><button class="btn sm" type="button" data-g="amount">Сумма</button><button class="btn sm" type="button" data-g="paid">Оплачено</button></div>` : ""}
+    </div>
+    ${rev.length ? `<div class="g-review">Нужна проверка: ${rev.length} ${plural(rev.length, "документ", "документа", "документов")} на ${rub(sum(rev))} ₽ — в платёжку не входят, пока не нажмёте «Проверено»</div>` : ""}
+    ${chunks.length ? `<div class="g-purpose">${chunks.length > 1 ? `Не влезает в 210 символов — будет ${chunks.length} платёжки:` : `${pay.length} ${plural(pay.length, "документ", "документа", "документов")} → 1 платёжка:`}
+      ${chunks.map(c => `<br><code>${esc(C.purposeText(c, sup))}</code>`).join("")}</div>` : ""}
+    ${isOpen && pay.length && probs.length ? `<div class="g-warn">Реквизиты поставщика: ${esc(probs.join("; "))}. Без них в банк не выгрузится.</div>` : ""}
+    ${items.map(rowHTML).join("")}
+  </div>`;
+}
+function rowHTML(d){
+  const s = stOf(d);
+  const pill = s === "review" ? `<span class="pill p-review">Нужна проверка</span>`
+    : s === "paid" ? `<span class="stamp">Оплачен${d.paidAt ? " " + ruShort(d.paidAt) : ""}</span>`
+    : s === "bank" ? `<span class="pill p-bank">В банке${d.payNo ? " · п/п " + esc(d.payNo) : ""}</span>`
+    : s === "overdue" ? `<span class="pill p-overdue">Просрочен</span>`
+    : s === "soon" ? `<span class="pill p-soon" title="Срок оплаты раньше ближайшего платёжного дня">Срочно</span>`
+    : `<span class="pill p-unpaid">К оплате</span>`;
+  // Срок — из документа или посчитанный по отсрочке поставщика (тогда с пометкой «по отсрочке»)
+  let due = "без срока";
+  const dd = dueOf(d), byDefer = C.dueSource(S.data, d) === "defer";
+  if (dd){ const n = diff(today(), dd);
+    due = (s === "paid" || s === "bank" ? "срок " + ru(dd) : n < 0 ? "срок был " + ru(dd) : n === 0 ? "срок сегодня" : "до " + human(dd)) + (byDefer ? " · по отсрочке" : ""); }
+  const vat = d.vatRate && d.vatRate !== "none" ? "НДС " + d.vatRate + "% " + rub(d.vat || 0) : "без НДС";
+  const acts = s === "paid" ? `<button class="btn sm quiet" type="button" data-a="unpay">Вернуть</button>`
+    : s === "bank" ? `<button class="btn sm" type="button" data-a="paid">Оплачен</button><button class="btn sm quiet" type="button" data-a="unpay">Не прошёл</button>`
+    : s === "review" ? `<button class="btn sm" type="button" data-a="reviewed">Проверено</button>`
+    : `<button class="btn sm" type="button" data-a="paid">Оплачен</button>`;
+  return `<article class="row${s === "review" ? " review" : ""}" data-id="${esc(d.id)}" tabindex="0">
+    <div class="r-doc">${esc(TYPES[d.type] || "Документ")} <span class="ns">№</span> ${esc(d.number || "—")}${d.date ? " от " + ru(d.date) : ""}<small>${esc(SOURCES[d.source] || "")}${d.prepay ? " · <b>предоплата</b>" + (s === "paid" && !d.closedBy ? ", ждём УПД" : "") : ""}${d.closesPrepay ? " · закрывает предоплату" : ""}${C.payNum(d) !== String(d.number || "").trim() ? " · в назначении " + esc(C.payNum(d)) : ""}</small>${s === "review" ? `<small class="r-q">Проверить: ${esc(d.review)}</small>` : ""}</div>
+    <div class="r-due">${esc(due)}</div>
+    <div class="r-amt">${rub(d.amount || 0)} ₽<small>${esc(vat)}</small></div>
+    <div class="r-st">${pill}</div>
+    <div class="r-act">${acts}</div>
+  </article>`;
+}
+F("chips").addEventListener("click", e => { const b = e.target.closest("[data-st]"); if (b){ S.st = b.dataset.st; render(); } });
+F("q").addEventListener("input", e => { S.q = e.target.value; render(); });
+F("list").addEventListener("click", e => {
+  const ga = e.target.closest("[data-g]");
+  if (ga){ const items = ga.closest(".group").dataset.ids.split(",").map(id => docs().find(d => d.id === id)).filter(Boolean);
+    const sup = supOf(items[0].supplierInn);
+    if (ga.dataset.g === "purpose") return copy(C.pack(items, sup).map(c => C.purposeText(c, sup)).join("\n"), "Назначение");
+    if (ga.dataset.g === "amount") return copy(rubIn(sum(items)), "Сумма");
+    if (ga.dataset.g === "paid") return setStatus(items, "paid");
+    return; }
+  const row = e.target.closest(".row"); if (!row) return;
+  const d = docs().find(x => x.id === row.dataset.id); if (!d) return;
+  const a = e.target.closest("[data-a]");
+  if (a && a.dataset.a === "reviewed") return reviewed(d);
+  if (a) return setStatus([d], a.dataset.a === "paid" ? "paid" : "unpaid");
+  openDoc(d);
+});
+F("list").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.classList.contains("row")){ const d = docs().find(x => x.id === e.target.dataset.id); if (d) openDoc(d); } });
+// «Проверено» — снять пометку: документ становится обычным «К оплате» и попадает в платёжку
+function reviewed(d){
+  d.reviewed = (d.review ? d.review + " · " : "") + "проверено " + ru(today());
+  delete d.review;
+  persist(); render(); toast("Проверено — документ в плане оплаты");
+}
+function setStatus(items, status){
+  for (const d of items){ d.status = status;
+    if (status === "paid") d.paidAt = today();
+    if (status === "unpaid"){ d.paidAt = ""; d.payNo = ""; d.exportedAt = ""; } }
+  persist(); render();
+  toast(status === "paid" ? (items.length > 1 ? "Отмечены оплаченными" : "Отмечен оплаченным") : "Вернул в неоплаченные");
+}
+
+/* ---------- документ ---------- */
+function fillSelects(){
+  F("d-vatrate").innerHTML = VATS.map(([v, l]) => `<option value="${v}">${l}</option>`).join("");
+  F("d-org").innerHTML = orgs().length ? orgs().map(o => `<option value="${esc(o.id)}">${esc(o.name)}</option>`).join("") : `<option value="">— добавьте в «Реквизиты»</option>`;
+  F("supList").innerHTML = sups().map(s => `<option value="${esc(s.inn)}">${esc(s.name)}</option>`).join("");
+}
+function openDoc(d){
+  S.edit = d || null; S.dupOk = false; S.preOk = false; fillSelects();
+  F("docTitle").textContent = d ? (TYPES[d.type] || "Документ") + " № " + (d.number || "") : "Новый документ";
+  F("btnDel").hidden = !d; F("dupBanner").hidden = true;
+  const x = d || { orgId: S.org || "", type: "upd", source: "paper", vatRate: "22" };
+  F("d-org").value = x.orgId || ""; F("d-type").value = x.type || "upd"; F("d-source").value = x.source || "paper";
+  F("d-number").value = x.number || ""; F("d-paynum").value = x.numberPay || C.autoPayNum(x.number, x.date);
+  F("d-date").value = x.date || ""; F("d-due").value = x.due || "";
+  F("d-amount").value = rubIn(x.amount || 0); F("d-vatrate").value = x.vatRate || "22"; F("d-vat").value = rubIn(x.vat || 0);
+  F("d-sinn").value = digits(x.supplierInn); F("d-sname").value = x.supplierName || "";
+  F("d-prepay").checked = !!x.prepay;
+  S.vatTouched = !!d; S.payTouched = !!(d && d.numberPay);
+  fillReq(supOf(x.supplierInn) || {});
+  updateDocPreview(); openSheet("ovDoc");
+  setTimeout(() => F(d ? "d-amount" : "d-number").focus(), 50);
+}
+function fillReq(s){
+  F("r-kpp").value = s.kpp || ""; F("r-acc").value = s.account || ""; F("r-bik").value = s.bik || ""; F("r-corr").value = s.corr || "";
+  F("r-bank").value = s.bank || ""; F("r-city").value = s.city || ""; F("r-subject").value = s.subject ?? ""; F("r-word").value = s.docWord ?? "Счет"; F("r-defer").value = s.deferDays || "";
+  if (s.name && !F("d-sname").value) F("d-sname").value = s.name;
+}
+const readReq = () => ({ name: F("d-sname").value.trim(), inn: digits(F("d-sinn").value), kpp: digits(F("r-kpp").value), account: digits(F("r-acc").value),
+  bik: digits(F("r-bik").value), corr: digits(F("r-corr").value), bank: F("r-bank").value.trim(), city: F("r-city").value.trim(),
+  subject: F("r-subject").value.trim(), docWord: F("r-word").value.trim(), deferDays: Number(digits(F("r-defer").value)) || 0 });
+const readDoc = () => ({ orgId: F("d-org").value, type: F("d-type").value, source: F("d-source").value,
+  number: F("d-number").value.trim(), numberPay: S.payTouched ? F("d-paynum").value.trim() : "",
+  date: F("d-date").value, due: F("d-due").value, amount: kop(F("d-amount").value), vatRate: F("d-vatrate").value, vat: kop(F("d-vat").value),
+  supplierInn: digits(F("d-sinn").value), supplierName: F("d-sname").value.trim(), prepay: F("d-prepay").checked });
+function updateDocPreview(){
+  const x = readDoc(), r = readReq(), txt = C.purposeText([x], r);
+  F("docPreview").innerHTML = esc(txt) + `<span class="len">${txt.length} из 210 символов</span>`;
+  const probs = r.inn || r.account || r.bik ? C.reqProblems(r) : [];
+  F("reqErrs").innerHTML = probs.length ? `<div class="banner">Проверьте реквизиты: ${esc(probs.join("; "))}</div>` : "";
+}
+F("docForm").addEventListener("input", e => {
+  const id = e.target.id;
+  if (id === "d-vat") S.vatTouched = true;
+  if (id === "d-paynum") S.payTouched = true;
+  if ((id === "d-amount" || id === "d-vatrate") && (!S.vatTouched || id === "d-vatrate")) F("d-vat").value = rubIn(C.vatOf(kop(F("d-amount").value), F("d-vatrate").value));
+  if ((id === "d-number" || id === "d-date") && !S.payTouched) F("d-paynum").value = C.autoPayNum(F("d-number").value, F("d-date").value);
+  if (id === "d-sinn"){ const s = supOf(e.target.value); if (s){ F("d-sname").value = s.name || ""; fillReq(s); } }
+  updateDocPreview();
+});
+F("docForm").addEventListener("change", updateDocPreview);
+F("btnSave").addEventListener("click", () => {
+  const x = readDoc(), r = readReq();
+  if (!x.amount) return toast("Укажите сумму");
+  if (!x.number) return toast("Укажите номер документа");
+  if (!x.supplierInn) return toast("Укажите ИНН поставщика");
+  const dup = docs().find(d => d.id !== (S.edit && S.edit.id) && digits(d.supplierInn) === x.supplierInn && String(d.number).trim() === x.number && (d.date || "") === x.date);
+  if (dup && !S.dupOk){ F("dupBanner").hidden = false;
+    F("dupBanner").innerHTML = `<div class="banner bad">Такой документ уже есть: ${esc(TYPES[dup.type] || "")} № ${esc(dup.number)} от ${ru(dup.date)} на ${rub(dup.amount)} ₽. Нажмите «Сохранить» ещё раз, если это другой документ.</div>`;
+    S.dupOk = true; return; }
+  // УПД на сумму уже оплаченной предоплаты — скорее всего, второй раз платить не нужно
+  const pre = !S.edit && !x.prepay ? C.openPrepays(S.data, x.supplierInn).find(d => d.amount === x.amount) : null;
+  if (pre && !S.preOk){ F("dupBanner").hidden = false;
+    F("dupBanner").innerHTML = `<div class="banner bad">У поставщика уже оплачена предоплата на эту сумму: ${esc(TYPES[pre.type] || "")} № ${esc(pre.number)} от ${ru(pre.date)}. Если этот документ закрывает её — не добавляйте его (или отметьте «Оплачен»). Нажмите «Сохранить» ещё раз, если это отдельная поставка.</div>`;
+    S.preOk = true; return; }
+  const old = supOf(x.supplierInn);
+  const sup = { ...(old || {}), ...r, inn: x.supplierInn, updatedAt: today() };
+  if (old && old.account && r.account && old.account !== r.account)
+    sup.history = [...(old.history || []), { account: old.account, bik: old.bik || "", bank: old.bank || "", until: today() }].slice(-10);
+  if (old) Object.assign(old, sup); else sups().push({ history: [], ...sup });
+  if (!x.supplierName) x.supplierName = r.name;
+  if (S.edit) Object.assign(S.edit, x);
+  else docs().push({ id: newId(), ...x, status: "unpaid", payNo: "", exportedAt: "", paidAt: "", createdAt: today(), scan: "" });
+  persist(); render(); closeSheet(F("ovDoc")); toast("Сохранено");
+});
+let delArmed = false;
+F("btnDel").addEventListener("click", () => {
+  if (!S.edit) return;
+  if (!delArmed){ delArmed = true; F("btnDel").textContent = "Точно удалить?"; setTimeout(() => { delArmed = false; F("btnDel").textContent = "Удалить"; }, 3000); return; }
+  delArmed = false; F("btnDel").textContent = "Удалить";
+  S.data.docs = docs().filter(d => d !== S.edit); persist(); render(); closeSheet(F("ovDoc")); toast("Удалено");
+});
+
+/* ---------- реквизиты ---------- */
+F("o-days").innerHTML = [1,2,3,4,5,6].map(d => `<label><input type="checkbox" id="o-day-${d}" value="${d}">${WD[d]}</label>`).join("");
+function showTab(t){ F("tabOrgs").setAttribute("aria-selected", t === "orgs"); F("tabSups").setAttribute("aria-selected", t === "sups"); F("paneOrgs").hidden = t !== "orgs"; F("paneSups").hidden = t !== "sups"; }
+F("tabOrgs").onclick = () => showTab("orgs"); F("tabSups").onclick = () => showTab("sups");
+// Карточка ИП в шапке → меню «Настройки» → пункт открывает своё окно поверх (закрыли — вернулись в меню)
+function openSettings(){ if (!S.data) return; openSheet("ovSet"); }
+function openReq(){ renderReq(); showTab("orgs"); openSheet("ovReq"); }
+F("miReq").onclick = openReq;
+F("miTheme").onclick = () => { renderThemeList(); openSheet("ovTheme"); };
+F("orgHead").addEventListener("click", openSettings);
+F("orgHead").addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " "){ e.preventDefault(); openSettings(); } });
+function renderReq(){
+  F("orgList").innerHTML = orgs().length ? orgs().map(o => { const p = C.reqProblems(o);
+    return `<div class="recitem"><div><b>${esc(o.name)}</b><small>ИНН ${esc(o.inn)} · р/с ${esc(o.account || "—")} · ${esc(o.bank || "")}</small>${p.length ? `<small style="color:var(--bad)">${esc(p.join("; "))}</small>` : ""}</div><button class="btn sm" type="button" data-org="${esc(o.id)}">Изменить</button></div>`; }).join("")
+    : `<p style="color:var(--muted)">Добавьте организацию, с которой платите.</p>`;
+  F("supRecList").innerHTML = sups().length ? sups().slice().sort((a, b) => (a.name || "").localeCompare(b.name || "")).map(s => { const p = C.reqProblems(s);
+    return `<div class="recitem"><div><b>${esc(s.name || "—")}</b><small>ИНН ${esc(s.inn)} · р/с ${esc(s.account || "—")} · ${esc(s.bank || "")}</small>${p.length ? `<small style="color:var(--bad)">${esc(p.join("; "))}</small>` : ""}</div><button class="btn sm" type="button" data-sup="${esc(s.inn)}">Изменить</button></div>`; }).join("")
+    : `<p style="color:var(--muted)">Поставщики появятся сами с первым документом.</p>`;
+}
+// «Изменить» и «+ Новая организация» — карточка отдельным окном поверх списка
+F("orgList").addEventListener("click", e => { const b = e.target.closest("[data-org]"); if (b){ fillOrgForm(orgById(b.dataset.org)); openSheet("ovOrgEdit"); } });
+F("btnOrgNew").onclick = () => { fillOrgForm(null); openSheet("ovOrgEdit"); };
+function fillOrgForm(o){
+  S.orgEdit = o || null; F("orgFormTitle").textContent = o ? o.name : "Новая организация";
+  const v = o || {};
+  F("o-name").value = v.name || ""; F("o-inn").value = v.inn || ""; F("o-kpp").value = v.kpp || ""; F("o-acc").value = v.account || "";
+  F("o-bik").value = v.bik || ""; F("o-corr").value = v.corr || ""; F("o-bank").value = v.bank || ""; F("o-city").value = v.city || ""; F("o-next").value = v.nextNo || "";
+  const days = (o && o.payDays) || DEFAULT_DAYS; $$("#o-days input").forEach(i => { i.checked = days.includes(Number(i.value)); });
+  F("orgErrs").innerHTML = ""; F("btnOrgDel").hidden = !o;
+}
+// Удаление организации вместе с её документами: иначе документы без организации попали бы в кабинет первого ИП
+F("btnOrgDel").onclick = () => {
+  const o = S.orgEdit; if (!o) return;
+  const ds = docs().filter(d => d.orgId === o.id), open = ds.filter(d => d.status !== "paid");
+  F("delOrgInfo").innerHTML = `<div><b>${esc(o.name)}</b>, ИНН ${esc(o.inn)}<br>Вместе с ней удалятся ${ds.length} ${plural(ds.length, "документ", "документа", "документов")}`
+    + (open.length ? `, из них <b>${open.length} не ${plural(open.length, "оплачен", "оплачены", "оплачены")} на ${rub(sum(open))} ₽</b>` : "") + `.<br>Поставщики в справочнике останутся.`
+    + `<br><span style="font-size:.85em">Отменить в трекере нельзя. Если удалили по ошибке — Claude восстановит из истории GitHub.</span></div>`;
+  F("delOrgWord").value = ""; F("btnDelOrgGo").disabled = true; openSheet("ovDelOrg"); setTimeout(() => F("delOrgWord").focus(), 50);
+};
+F("delOrgWord").addEventListener("input", e => { F("btnDelOrgGo").disabled = e.target.value.trim().toLowerCase() !== "удалить"; });
+F("btnDelOrgGo").onclick = () => {
+  const o = S.orgEdit; if (!o || F("delOrgWord").value.trim().toLowerCase() !== "удалить") return;
+  S.data.docs = docs().filter(d => d.orgId !== o.id);
+  S.data.orgs = orgs().filter(x => x.id !== o.id);
+  if (S.org === o.id){ S.org = (orgs()[0] || {}).id || ""; lsSet("org", S.org); }
+  closeSheet(F("ovDelOrg")); closeSheet(F("ovOrgEdit"));
+  persist(); renderReq(); render(); toast("Организация удалена: " + o.name);
+};
+F("btnOrgSave").onclick = () => {
+  const o = { name: F("o-name").value.trim(), inn: digits(F("o-inn").value), kpp: digits(F("o-kpp").value), account: digits(F("o-acc").value),
+    bik: digits(F("o-bik").value), corr: digits(F("o-corr").value), bank: F("o-bank").value.trim(), city: F("o-city").value.trim(),
+    nextNo: Number(digits(F("o-next").value)) || 1, payDays: $$("#o-days input").filter(i => i.checked).map(i => Number(i.value)) };
+  if (!o.payDays.length) o.payDays = DEFAULT_DAYS;
+  if (!o.name || !o.inn) return toast("Нужны хотя бы название и ИНН");
+  const p = C.reqProblems(o); F("orgErrs").innerHTML = p.length ? `<div class="banner">Сохранено, но проверьте: ${esc(p.join("; "))}</div>` : "";
+  if (S.orgEdit) Object.assign(S.orgEdit, o); else { const n = { id: "org-" + o.inn, ...o }; orgs().push(n); S.orgEdit = n; }
+  persist(); renderReq(); render(); toast("Организация сохранена");
+  if (!p.length) closeSheet(F("ovOrgEdit"));   // есть замечания — окно остаётся, чтобы их было видно
+};
+F("supRecList").addEventListener("click", e => { const b = e.target.closest("[data-sup]"); if (!b) return; const s = supOf(b.dataset.sup); if (!s) return;
+  S.supEdit = s; F("supFormTitle").textContent = s.name || "Поставщик";
+  F("s-name").value = s.name || ""; F("s-inn").value = s.inn; F("s-kpp").value = s.kpp || ""; F("s-acc").value = s.account || ""; F("s-bik").value = s.bik || "";
+  F("s-corr").value = s.corr || ""; F("s-bank").value = s.bank || ""; F("s-city").value = s.city || ""; F("s-subject").value = s.subject || ""; F("s-word").value = s.docWord ?? "Счет"; F("s-defer").value = s.deferDays || ""; F("s-contract").value = s.contract || "";
+  F("supErrs").innerHTML = ""; const h = s.history || [];
+  F("supHist").innerHTML = h.length ? `<p style="color:var(--muted);font-size:.82rem">Старые реквизиты: ${h.map(x => esc(x.account) + " (" + esc(x.bank || "") + ", до " + ru(x.until) + ")").join("; ")}</p>` : "";
+  openSheet("ovSupEdit"); });
+F("btnSupSave").onclick = () => {
+  const s = S.supEdit; if (!s) return;
+  const n = { name: F("s-name").value.trim(), kpp: digits(F("s-kpp").value), account: digits(F("s-acc").value), bik: digits(F("s-bik").value),
+    corr: digits(F("s-corr").value), bank: F("s-bank").value.trim(), city: F("s-city").value.trim(), subject: F("s-subject").value.trim(), docWord: F("s-word").value.trim(), deferDays: Number(digits(F("s-defer").value)) || 0, contract: F("s-contract").value.trim(), updatedAt: today() };
+  if (s.account && n.account !== s.account) n.history = [...(s.history || []), { account: s.account, bik: s.bik || "", bank: s.bank || "", until: today() }].slice(-10);
+  Object.assign(s, n);
+  const p = C.reqProblems(s); F("supErrs").innerHTML = p.length ? `<div class="banner">Сохранено, но проверьте: ${esc(p.join("; "))}</div>` : "";
+  persist(); renderReq(); render(); toast("Поставщик сохранён");
+  if (!p.length) closeSheet(F("ovSupEdit"));
+};
+
+/* ---------- выгрузка ---------- */
+F("btnExport").onclick = async () => {
+  // Перед выгрузкой — свежие данные: номера платёжек могли сдвинуть на другом устройстве
+  if (GH.on){ F("btnExport").disabled = true; await ghRefresh(true); F("btnExport").disabled = false; }
+  F("expDone").hidden = true; F("expBody").hidden = false; F("btnDownload").hidden = false;
+  if (!orgs().length){ F("e-payer").hidden = true; F("expGroups").innerHTML = `<div class="banner">Сначала добавьте свою организацию в «Реквизиты».</div>`; F("expTotal").innerHTML = ""; F("btnDownload").disabled = true; openSheet("ovExp"); return; }
+  // Платит всегда организация открытого кабинета — чтобы не перепутать счёт списания
+  const o = orgById(S.org);
+  F("e-org").value = o.id; F("e-date").value = today(); F("e-no").value = o.nextNo || 1;
+  F("expTitle").textContent = "Выгрузка в банк — " + C.orgShort(o.name);
+  F("e-payer").hidden = false;
+  F("e-payer").innerHTML = `<b>Платит: ${esc(o.name)}</b><span class="mono">р/с ${esc(digits(o.account))} · ${esc(o.bank || "")}</span>`;
+  S.exp = { off: new Set() }; renderExport(); openSheet("ovExp");
+};
+F("e-no").addEventListener("input", renderExport); F("e-date").addEventListener("change", renderExport);
+F("expGroups").addEventListener("change", e => { const c = e.target.closest("input[data-doc]"); if (!c) return; if (c.checked) S.exp.off.delete(c.dataset.doc); else S.exp.off.add(c.dataset.doc); renderExport(); });
+const plan = () => C.exportPlan(S.data, F("e-org").value, { off: S.exp.off, startNo: Number(digits(F("e-no").value)) || 1 });
+function renderExport(){
+  const P = plan();
+  let html = P.orgProblems.length ? `<div class="banner bad">Реквизиты плательщика: ${esc(P.orgProblems.join("; "))}. Исправьте в «Реквизитах».</div>` : "";
+  if (!P.groups.length) html += `<p style="color:var(--muted)">Неоплаченных документов у этой организации нет.</p>`;
+  html += P.groups.map(G => `<div class="po">
+    <div class="po-head"><b>${esc((G.sup && G.sup.name) || G.items[0].supplierName || G.inn)}</b><span class="mono">${rub(sum(G.items.filter(d => !S.exp.off.has(d.id))))} ₽</span></div>
+    <div class="po-docs">${G.items.slice().sort((a, b) => (a.date || "").localeCompare(b.date || "")).map(d => `<label><input type="checkbox" data-doc="${esc(d.id)}" ${S.exp.off.has(d.id) ? "" : "checked"} ${G.probs.length ? "disabled" : ""}>
+      <span class="mono">${esc(C.payNum(d))} от ${ruShort(d.date)}</span><span style="margin-left:auto" class="mono">${rub(d.amount)} ₽</span></label>`).join("")}</div>
+    ${G.probs.length ? `<div class="g-warn">Не выгрузится: ${esc(G.probs.join("; "))}.</div>`
+      : `<div class="po-out">${G.chunks.map(o => `<div class="po-one"><span class="t">Платёжка № ${o.no} · ${rub(o.amount)} ₽ · ${o.purpose.length}/210</span><span class="preview">${esc(o.purpose)}</span></div>`).join("")}</div>`}
+  </div>`).join("");
+  F("expGroups").innerHTML = html;
+  const nd = P.orders.reduce((n, o) => n + o.docs.length, 0);
+  F("expTotal").innerHTML = P.orders.length ? `<span>${nd} ${plural(nd, "документ", "документа", "документов")} → <b>${P.orders.length} ${plural(P.orders.length, "платёжка", "платёжки", "платёжек")}</b></span><span class="mono">${rub(sum(P.orders))} ₽</span>` : "";
+  F("btnDownload").disabled = !P.orders.length || P.orgProblems.length > 0;
+}
+F("btnDownload").onclick = () => {
+  const P = plan(); if (!P.orders.length) return;
+  const dateISO = F("e-date").value || today();
+  const files = C.exportFiles(P.org, P.orders, dateISO).map(f => ({ ...f, blob: new Blob([C.cp1251(f.text)], { type: "text/plain" }) }));
+  // Телефон скачивает автоматически только первый файл (остальные браузер блокирует) — там даём кнопки у каждого файла.
+  // На ПК — как раньше: все файлы сразу, с небольшой паузой, иначе браузер может скачать не все.
+  const phone = matchMedia("(pointer:coarse)").matches;
+  if (!phone) files.forEach((f, i) => setTimeout(() => downloadBlob(f.blob, f.name), i * 400));
+  C.markExported(S.data, P, dateISO); persist(); render();
+  const ids = P.orders.flatMap(o => o.docs.map(d => d.id));
+  let canShare = false;
+  try { canShare = !!(navigator.canShare && navigator.canShare({ files: [new File([files[0].blob], files[0].name, { type: "text/plain" })] })); } catch {}
+  F("expBody").hidden = true; F("btnDownload").hidden = true; F("expDone").hidden = false;
+  F("expDone").innerHTML = `<h2>${files.length > 1 ? "Файлы готовы" : "Файл готов"}: ${P.orders.length} ${plural(P.orders.length, "платёжка", "платёжки", "платёжек")} на ${rub(sum(P.orders))} ₽</h2>
+    <ul class="filelist">${files.map((f, i) => `<li>
+      <span class="fl-name"><b>${esc(f.sup.name)}</b><small class="mono">${esc(f.name)}</small></span>
+      <span class="fl-acts"><button class="btn act" type="button" data-dl="${i}">${phone ? "Скачать" : "Скачать ещё раз"}</button>${canShare ? `<button class="btn act" type="button" data-share="${i}">Сохранить в Файлы</button>` : ""}</span>
+    </li>`).join("")}</ul>
+    <ol class="howto">
+      <li>${phone ? "Скачайте каждый файл кнопкой выше. На iPhone они попадают в «Файлы» → «Загрузки» (в Яндекс Браузере — в его «Загрузки»). «Сохранить в Файлы» — выбрать папку самому." : `${files.length > 1 ? "Файлы сохранены" : "Файл сохранён"} в папку «Загрузки». Если какого-то нет — «Скачать ещё раз».`}</li>
+      <li>В интернет-банке ${esc(P.org.bank || "")} откройте импорт платёжных поручений из 1С и загрузите ${files.length > 1 ? "каждый файл" : "файл"} — в имени файла есть поставщик и номер платёжки.</li>
+      <li>Сверьте суммы и подпишите. Номера платёжек: ${P.orders[0].no}–${P.orders[P.orders.length - 1].no}.</li>
+      <li>${GH.on ? "Отметки сохраняются на GitHub сами — ничего нажимать не нужно." : "В GitHub Desktop сделайте Commit и Push, чтобы статусы дошли до личного ПК."}</li>
+    </ol>
+    <div class="actions"><button class="btn primary" type="button" id="btnDonePaid">Банк исполнил — отметить оплаченными</button></div>`;
+  F("expDone").querySelectorAll("[data-dl]").forEach(b => b.onclick = () => { const f = files[+b.dataset.dl]; downloadBlob(f.blob, f.name); b.textContent = "Скачано ✓"; });
+  F("expDone").querySelectorAll("[data-share]").forEach(b => b.onclick = async () => {
+    const f = files[+b.dataset.share];
+    try { await navigator.share({ files: [new File([f.blob], f.name, { type: "text/plain" })], title: f.name }); b.textContent = "Готово ✓"; }
+    catch (e) { if (e && e.name !== "AbortError") toast("Не удалось — используйте «Скачать»"); }
+  });
+  F("btnDonePaid").onclick = () => { setStatus(ids.map(id => docs().find(d => d.id === id)).filter(Boolean), "paid"); closeSheet(F("ovExp")); };
+};
+F("btnAdd").onclick = () => openDoc(null);
+
+/* ---------- добавить из ЭДО ---------- */
+// ZIP распаковываем библиотекой JSZip — подгружаем при первом использовании
+function loadJSZip(){
+  if (window.JSZip) return Promise.resolve(window.JSZip);
+  return new Promise((res, rej) => { const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+    s.onload = () => res(window.JSZip); s.onerror = () => rej(new Error("Не удалось загрузить распаковщик архива — нужен интернет. Можно выбрать сами XML-файлы."));
+    document.head.appendChild(s); });
+}
+const EDO = { plan: null };
+F("btnEdo").onclick = () => { EDO.plan = null; F("edoFiles").value = ""; F("edoStatus").textContent = ""; renderEdo(); openSheet("ovEdo"); };
+F("edoFiles").addEventListener("change", async e => {
+  const files = [...e.target.files]; if (!files.length) return;
+  F("edoStatus").textContent = "Читаю файлы…"; EDO.plan = null; renderEdo();
+  try {
+    const items = [];
+    for (const f of files){
+      if (/\.zip$/i.test(f.name) || f.type.includes("zip")){
+        const zip = await (await loadJSZip()).loadAsync(f);
+        for (const z of Object.values(zip.files)) if (!z.dir && /\.xml$/i.test(z.name)) items.push({ file: z.name.split("/").pop(), text: C.decodeXml(await z.async("uint8array")) });
+      } else if (/\.xml$/i.test(f.name)) items.push({ file: f.name, text: C.decodeXml(new Uint8Array(await f.arrayBuffer())) });
+    }
+    EDO.plan = C.edoPlan(S.data, items);
+    F("edoStatus").textContent = items.length ? `Прочитано файлов: ${items.length}` : "В выбранных файлах нет XML-документов.";
+  } catch (err) { F("edoStatus").textContent = err.message || "Не удалось прочитать файлы."; }
+  renderEdo();
+});
+const edoKey = a => digits(a.seller.inn) + "|" + a.doc.number + "|" + a.doc.date;
+function renderEdo(){
+  const P = EDO.plan, add = P ? P.add : [], skip = P ? P.skip : [];
+  F("edoList").innerHTML = add.length ? `<h3>Добавить</h3>` + add.map((a, i) => `<label class="edoitem">
+      <input type="checkbox" data-edo="${i}" ${a.on ? "checked" : ""}>
+      <span class="ei-main"><b>${esc(a.supName)}</b><span class="mono">${esc(a.numText)}</span>
+        <small>${esc(C.orgShort(a.org.name))} · ${a.doc.type === "invoice" ? "Счёт-фактура" : "УПД"}${a.doc.due ? " · срок " + ru(a.doc.due) : ""}${a.newSup ? " · новый поставщик" : ""}</small>
+        ${a.warn.map(w => `<small class="ei-warn">${esc(w)}</small>`).join("")}</span>
+      <span class="ei-amt mono">${rub(a.doc.amount)} ₽<small>НДС ${rub(a.doc.vat)}</small></span>
+    </label>`).join("") : (P ? `<p style="color:var(--muted)">Новых документов к оплате нет.</p>` : "");
+  F("edoSkipBox").hidden = !skip.length;
+  F("edoSkipSum").textContent = `Пропущено: ${skip.length}`;
+  F("edoSkip").innerHTML = skip.map(s => `<li><span>${esc(s.label || s.file)}</span><span class="st">${esc(s.reason)}</span></li>`).join("");
+  const on = add.filter(a => a.on);
+  F("edoTotal").textContent = on.length ? `${on.length} ${plural(on.length, "документ", "документа", "документов")} · ${rub(on.reduce((s, a) => s + a.doc.amount, 0))} ₽` : "";
+  F("btnEdoAdd").disabled = !on.length; F("btnEdoAdd").textContent = on.length ? `Добавить (${on.length})` : "Добавить";
+}
+F("edoList").addEventListener("change", e => {
+  const c = e.target.closest("input[data-edo]"); if (!c || !EDO.plan) return;
+  const a = EDO.plan.add[+c.dataset.edo]; a.on = c.checked;
+  // варианты одного документа с разными суммами — можно выбрать только один
+  if (a.on) EDO.plan.add.forEach(b => { if (b !== a && edoKey(b) === edoKey(a)) b.on = false; });
+  renderEdo();
+});
+F("btnEdoAdd").onclick = () => {
+  if (!EDO.plan) return;
+  const n = C.edoApply(S.data, EDO.plan, today());
+  persist(); render(); closeSheet(F("ovEdo"));
+  toast(`Добавлено из ЭДО: ${n} ${plural(n, "документ", "документа", "документов")}`);
+};
+})();
+</script>
+</body>
+</html>
