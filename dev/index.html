@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <!-- Версия программы: менять при каждой выкладке здесь и в ?v= у core.js ниже — по ней трекер узнаёт, что вышло обновление -->
-<meta name="app-version" content="R6.1">
+<meta name="app-version" content="R6.2">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#092634">
 <meta name="mobile-web-app-capable" content="yes">
@@ -380,6 +380,24 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
 
 /* Уведомление внизу — «капсула» со стеклом */
 .toast{border-radius:999px;padding:11px 20px;background:color-mix(in srgb,var(--ink) 86%,transparent);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);box-shadow:var(--sh-2)}
+/* Темы 2026 (R6.2). Цвета ИП для каждой — в ORG_COLORS в скрипте. */
+/* Тёплая: тёплые нейтральные вместо холодно-серых, фон — Pantone 2026 Cloud Dancer */
+:root[data-theme="warm"]{ --bg:#F3EFE8; --surface:#FFFDF9; --sunk:#F7F3EC; --ink:#2B2520; --muted:#7A6E63; --line:rgba(60,40,20,.09);
+  --glass:rgba(255,253,249,.74); --glass-line:rgba(255,255,255,.75); --scrim:rgba(43,37,32,.45) }
+@media (prefers-color-scheme: dark){ :root[data-theme="warm"]{ --bg:#14110E; --surface:#1F1B17; --sunk:#29241F; --ink:#F2ECE4; --muted:#ADA195;
+  --line:rgba(255,240,220,.08); --glass:rgba(34,29,24,.68); --glass-line:rgba(255,240,220,.06) } }
+/* Бирюза: Transformative Teal (WGSN/Coloro 2026) — свежий фон с сине-зелёным оттенком */
+:root[data-theme="teal"]{ --bg:#EDF3F2; --surface:#FFFFFF; --sunk:#F2F7F6; --ink:#0E2A2A; --muted:#55706F; --line:rgba(14,42,42,.09);
+  --glass:rgba(255,255,255,.72); --glass-line:rgba(255,255,255,.7); --scrim:rgba(14,42,42,.45) }
+@media (prefers-color-scheme: dark){ :root[data-theme="teal"]{ --bg:#071514; --surface:#10221F; --sunk:#16302C; --ink:#E6F2F0; --muted:#94B3AF;
+  --line:rgba(200,255,245,.08); --glass:rgba(16,36,33,.68); --glass-line:rgba(200,255,245,.06) } }
+/* Графит: монохром в духе Linear и Vercel — почти чёрно-белый, цвет только у ИП и статусов */
+:root[data-theme="graphite"]{ --bg:#F4F4F5; --surface:#FFFFFF; --sunk:#F7F7F8; --ink:#0A0A0B; --muted:#6B6B74; --line:rgba(0,0,0,.08);
+  --glass:rgba(255,255,255,.75); --glass-line:rgba(255,255,255,.8); --scrim:rgba(0,0,0,.45) }
+@media (prefers-color-scheme: dark){ :root[data-theme="graphite"]{ --bg:#08080A; --surface:#131316; --sunk:#1B1B1F; --ink:#EDEDEF; --muted:#8E8E98;
+  --line:rgba(255,255,255,.07); --glass:rgba(22,22,26,.7); --glass-line:rgba(255,255,255,.05) } }
+:root[data-theme="graphite"] body::before{opacity:.5}
+
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .26s cubic-bezier(.2,.8,.2,1)}@keyframes up{from{transform:translateY(24px) scale(.98);opacity:0}}}
 </style>
 </head>
@@ -715,7 +733,7 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
 
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="core.js?v=R6.1"></script>
+<script src="core.js?v=R6.2"></script>
 <script>
 (() => {
 "use strict";
@@ -1054,7 +1072,26 @@ const theme = () => ORG_COLORS[S.theme] ? S.theme : "classic";
 const orgColor = id => { const set = ORG_COLORS[theme()], i = Math.max(0, orgs().findIndex(o => o.id === id)); return set[i % set.length][darkMQ.matches ? "dark" : "light"]; };
 darkMQ.addEventListener("change", () => render());
 S.theme = lsGet("theme") || "classic";
-const THEME_NAMES = { classic: "Классика", ocean: "Океан" };
+// Темы 2026: первый цвет — Н.В., второй — В.И., дальше запас
+ORG_COLORS.warm = [
+  { light: ["#B4532A", "#F6E4D9", "#FFFFFF", "#9A4320"], dark: ["#E58A5E", "#3A2318", "#14110E", "#F0A27E"] },   // терракота
+  { light: ["#4F6B45", "#E3EBDC", "#FFFFFF", "#43603A"], dark: ["#9CBF8E", "#22301D", "#14110E", "#AFCDA2"] },   // шалфей
+  { light: ["#8A6A2F", "#F1E8D4", "#FFFFFF", "#7A5C24"], dark: ["#D9B46A", "#3A2F18", "#14110E", "#E6C789"] },   // охра
+  { light: ["#6E4B7E", "#EDE2F1", "#FFFFFF", "#6E4B7E"], dark: ["#C9A3D9", "#33243A", "#14110E", "#D6B7E3"] }
+];
+ORG_COLORS.teal = [
+  { light: ["#0F6E6E", "#D7EEEC", "#FFFFFF", "#0D6464"], dark: ["#4FD1C5", "#123B38", "#071514", "#6ADCD1"] },   // Transformative Teal
+  { light: ["#E2604A", "#FBE3DC", "#FFFFFF", "#B9432F"], dark: ["#FF8A73", "#46241D", "#071514", "#FF9C88"] },   // коралл
+  { light: ["#3B5BA9", "#E0E7F6", "#FFFFFF", "#3B5BA9"], dark: ["#8FA9EC", "#1F2A47", "#071514", "#A6BAF0"] },
+  { light: ["#B88A1B", "#F6ECD2", "#0E2A2A", "#7E5E0E"], dark: ["#E8BE55", "#3B3016", "#071514", "#F0CD78"] }
+];
+ORG_COLORS.graphite = [
+  { light: ["#5E6AD2", "#E6E8F8", "#FFFFFF", "#4B57C2"], dark: ["#8B93F0", "#23264A", "#08080A", "#A1A8F4"] },   // индиго Linear
+  { light: ["#D9822B", "#FAEBDB", "#FFFFFF", "#A65F14"], dark: ["#F2A14F", "#3E2A15", "#08080A", "#F6B474"] },   // янтарь
+  { light: ["#2F9E6E", "#DCF2E8", "#FFFFFF", "#22805A"], dark: ["#5CD6A0", "#16362A", "#08080A", "#7BE0B3"] },
+  { light: ["#C2417A", "#F7DFEA", "#FFFFFF", "#A8336A"], dark: ["#F07AAE", "#41192C", "#08080A", "#F497C0"] }
+];
+const THEME_NAMES = { classic: "Классика", ocean: "Океан", warm: "Тёплая", teal: "Бирюза", graphite: "Графит" };
 function applyTheme(){ if (theme() === "classic") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme = theme();
   F("miThemeNow").textContent = THEME_NAMES[theme()]; renderThemeList(); }
 // Варианты темы с образцами цветов ИП: первые два — нынешние Н.В. и В.И.
