@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <!-- Версия программы: менять при каждой выкладке здесь и в ?v= у core.js ниже — по ней трекер узнаёт, что вышло обновление -->
-<meta name="app-version" content="R7">
+<meta name="app-version" content="R8">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#092634">
 <meta name="mobile-web-app-capable" content="yes">
@@ -45,7 +45,8 @@
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 var(--f-ui)}
 /* Как приложение: без масштабирования и сдвига вбок, без «резинки» и подсветки нажатий */
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%;touch-action:pan-x pan-y;overflow-x:hidden;overscroll-behavior:none}
-body{overflow-x:hidden;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
+/* clip, а не hidden: с hidden body становится отдельной областью прокрутки, и Chrome на ПК не крутит страницу колесом */
+body{overflow-x:hidden;overflow-x:clip;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
 button,.chip,.orghead,.mi,.th,.drop{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 /* iPhone увеличивает страницу при фокусе на поле с шрифтом меньше 16px — на сенсорных экранах ставим 16px */
 @media (pointer:coarse){ input,select,textarea{font-size:16px!important} }
@@ -729,7 +730,7 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
 
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="core.js?v=R7"></script>
+<script src="core.js?v=R8"></script>
 <script>
 (() => {
 "use strict";
