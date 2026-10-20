@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <!-- Версия программы: менять при каждой выкладке здесь и в ?v= у core.js ниже — по ней трекер узнаёт, что вышло обновление -->
-<meta name="app-version" content="R6">
+<meta name="app-version" content="R7">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#092634">
 <meta name="mobile-web-app-capable" content="yes">
@@ -281,6 +281,119 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
 #btnDonePaid{width:100%;padding:12px 14px;font-size:1rem}   /* кнопки одна под другой, на всю ширину */
 .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:.9rem;z-index:40;max-width:calc(100% - 32px)}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(12px);opacity:.6}}}
+
+/* ===== Визуальный слой (R6.1): как в современных банковских приложениях — крупные скругления, мягкие тени,
+   полупрозрачные панели с размытием, лёгкие градиенты. Разметка, порядок и размеры кнопок не меняются. ===== */
+:root{
+  --r:22px; --r-sm:14px; --r-xs:10px;
+  --bg:#F2F3F7; --sunk:#F5F6FA; --line:rgba(20,28,45,.08);
+  --sh-1:0 1px 2px rgba(18,26,44,.04),0 4px 14px rgba(18,26,44,.05);
+  --sh-2:0 2px 6px rgba(18,26,44,.05),0 14px 36px rgba(18,26,44,.09);
+  --glass:rgba(255,255,255,.72); --glass-line:rgba(255,255,255,.7);
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0B0D12; --surface:#1A1D24; --sunk:#22262F; --line:rgba(255,255,255,.07);
+  --sh-1:0 1px 2px rgba(0,0,0,.3),0 6px 18px rgba(0,0,0,.25);
+  --sh-2:0 2px 8px rgba(0,0,0,.35),0 18px 44px rgba(0,0,0,.45);
+  --glass:rgba(30,33,41,.66); --glass-line:rgba(255,255,255,.06) }}
+:root[data-theme="ocean"]{ --bg:#F1F5F7; --line:rgba(9,38,52,.08) }
+@media (prefers-color-scheme: dark){ :root[data-theme="ocean"]{ --bg:#071E2A; --surface:#0E2C3B; --sunk:#123443; --line:rgba(255,255,255,.07); --glass:rgba(14,44,59,.66) } }
+
+/* Фон: мягкое свечение в цвете открытого ИП */
+body{background:var(--bg)}
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:radial-gradient(900px 520px at 0% -8%,color-mix(in srgb,var(--accent) 22%,transparent),transparent 62%),
+             radial-gradient(700px 480px at 100% 0%,color-mix(in srgb,var(--accent) 12%,transparent),transparent 60%)}
+
+/* Стекло: шапка, карточки ИП, сводка, фильтры */
+.orghead,.orgtab,.stats,.chip,.filters input[type=search],.filters select{
+  background:var(--glass);-webkit-backdrop-filter:blur(22px) saturate(1.6);backdrop-filter:blur(22px) saturate(1.6)}
+
+/* Карточка открытого ИП: градиент в его цвете вместо полосы слева */
+.orghead{border:1px solid var(--glass-line);border-radius:var(--r);box-shadow:var(--sh-2);padding:16px 60px 16px 18px;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 20%,var(--glass)) 0%,var(--glass) 70%)}
+.orghead:hover{box-shadow:var(--sh-2),inset 0 0 0 1px color-mix(in srgb,var(--accent) 40%,transparent)}
+.oh-gear{top:12px;right:12px;border:0;background:var(--glass);box-shadow:var(--sh-1)}
+.top h1 i{box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 22%,transparent)}
+
+/* Кнопки: скругление побольше, главная — с градиентом и цветной тенью */
+.btn{border-radius:var(--r-sm);border-color:transparent;box-shadow:var(--sh-1);transition:transform .12s ease,filter .12s ease,box-shadow .12s ease}
+.btn:hover{border-color:transparent;filter:brightness(1.03)}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 82%,#fff),var(--accent));
+  box-shadow:0 8px 22px color-mix(in srgb,var(--accent) 32%,transparent),inset 0 1px 0 rgba(255,255,255,.25)}
+.btn.quiet{box-shadow:none}
+.btn.act{border:2px solid color-mix(in srgb,var(--accent) 55%,transparent);background:color-mix(in srgb,var(--accent-soft) 70%,var(--glass));
+  -webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px)}
+.btn.sm{border-radius:var(--r-xs)}
+.btn:disabled{transform:none;filter:none}
+
+/* Карточки кабинетов ИП: цветная точка и мягкая подсветка вместо полосы */
+.orgtab{border:1px solid var(--glass-line);border-left:1px solid var(--glass-line);border-radius:var(--r);box-shadow:var(--sh-1);padding:14px 18px}
+.orgtab:hover{border-color:var(--glass-line);box-shadow:var(--sh-2)}
+.orgtab[aria-pressed="true"]{border-color:transparent;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--oc) 22%,var(--glass)),var(--glass) 75%);
+  box-shadow:var(--sh-2),inset 0 0 0 2px color-mix(in srgb,var(--oc) 55%,transparent)}
+.orgtab .on i{box-shadow:0 0 0 4px color-mix(in srgb,var(--oc) 22%,transparent)}
+.orgtab .amt{font-size:1.4rem;letter-spacing:-.01em}
+
+/* Сводка и фильтры */
+.stats{border:1px solid var(--glass-line);border-radius:var(--r);box-shadow:var(--sh-1);padding:16px 20px}
+.chip{border:1px solid var(--glass-line);box-shadow:var(--sh-1);padding:6px 14px}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink);box-shadow:var(--sh-2)}
+.filters input[type=search],.filters select{border:1px solid var(--glass-line);border-radius:var(--r-sm);box-shadow:var(--sh-1);padding:9px 14px}
+
+/* Группы поставщиков — белые карточки с тенью, разделители тоньше */
+.group{border:0;border-radius:var(--r);box-shadow:var(--sh-1)}
+.g-head{background:transparent;border-bottom:1px solid var(--line);padding:14px 18px}
+.g-purpose,.g-warn,.g-review{padding:10px 18px;border-bottom-color:var(--line)}
+.g-purpose{background:color-mix(in srgb,var(--sunk) 60%,transparent)}
+.row{padding:13px 18px;border-top-color:var(--line)}
+.row:hover{background:color-mix(in srgb,var(--sunk) 70%,transparent)}
+.pill{padding:4px 11px}
+.p-review{background:linear-gradient(180deg,color-mix(in srgb,var(--bad) 85%,#fff),var(--bad));box-shadow:0 4px 12px color-mix(in srgb,var(--bad) 30%,transparent)}
+.row.review,.row.review:hover{background:linear-gradient(90deg,var(--bad-soft),color-mix(in srgb,var(--bad-soft) 55%,var(--surface)))}
+
+/* Пустые экраны, плашки, уведомления */
+.card{border:0;border-radius:var(--r);box-shadow:var(--sh-1);background:var(--glass);-webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px)}
+.update{border-radius:var(--r-sm);background:linear-gradient(135deg,var(--accent),color-mix(in srgb,var(--accent) 70%,#000));box-shadow:0 10px 26px color-mix(in srgb,var(--accent) 30%,transparent)}
+.notice,.banner{border-radius:var(--r-sm)}
+
+/* Окна: затемнение с размытием, крупные скругления, полупрозрачная шапка */
+.overlay{-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.sheet{border-radius:28px;box-shadow:var(--sh-2),0 30px 80px rgba(0,0,0,.25);overflow:clip}
+.sh-head{position:sticky;top:0;z-index:2;background:var(--glass);-webkit-backdrop-filter:blur(22px) saturate(1.6);backdrop-filter:blur(22px) saturate(1.6);border-bottom-color:var(--line)}
+.sh-foot{background:var(--glass);-webkit-backdrop-filter:blur(22px) saturate(1.6);backdrop-filter:blur(22px) saturate(1.6);border-top-color:var(--line);border-radius:0 0 28px 28px}
+.x{width:36px;height:36px;display:grid;place-items:center;padding:0;border-radius:50%;background:var(--sunk)}
+.menu{border:0;border-radius:var(--r);box-shadow:var(--sh-1);background:var(--surface)}
+.mi{background:transparent;border-top-color:var(--line)}
+.mi-ic{border-radius:12px;background:linear-gradient(135deg,var(--accent-soft),color-mix(in srgb,var(--accent-soft) 60%,var(--surface)))}
+.th,.recitem,.po,.filelist li,.edoitem,.scanlist li{border-color:var(--line);border-radius:var(--r-sm);box-shadow:var(--sh-1);background:var(--surface)}
+.drop{border-radius:var(--r);border-color:color-mix(in srgb,var(--accent) 30%,var(--line));background:color-mix(in srgb,var(--accent-soft) 45%,var(--surface))}
+.logout{border-radius:var(--r-sm)}
+
+/* Поля ввода: без рамок, мягкий фон, кольцо фокуса */
+.f input,.f select,.f textarea{border:1px solid transparent;border-radius:12px;background:var(--sunk);transition:box-shadow .12s ease,border-color .12s ease}
+.f input:focus,.f select:focus,.f textarea:focus{outline:none;border-color:color-mix(in srgb,var(--accent) 60%,transparent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 16%,transparent)}
+.preview{border:0;border-radius:12px}
+.days label{border-radius:10px;border-color:var(--line);background:var(--sunk)}
+
+/* Уведомление внизу — «капсула» со стеклом */
+.toast{border-radius:999px;padding:11px 20px;background:color-mix(in srgb,var(--ink) 86%,transparent);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);box-shadow:var(--sh-2)}
+/* Темы 2026 (R6.2). Цвета ИП для каждой — в ORG_COLORS в скрипте. */
+/* Бирюза: Transformative Teal (WGSN/Coloro 2026) — свежий фон с сине-зелёным оттенком */
+:root[data-theme="teal"]{ --bg:#EDF3F2; --surface:#FFFFFF; --sunk:#F2F7F6; --ink:#0E2A2A; --muted:#55706F; --line:rgba(14,42,42,.09);
+  --glass:rgba(255,255,255,.72); --glass-line:rgba(255,255,255,.7); --scrim:rgba(14,42,42,.45) }
+@media (prefers-color-scheme: dark){ :root[data-theme="teal"]{ --bg:#071514; --surface:#10221F; --sunk:#16302C; --ink:#E6F2F0; --muted:#94B3AF;
+  --line:rgba(200,255,245,.08); --glass:rgba(16,36,33,.68); --glass-line:rgba(200,255,245,.06) } }
+/* Графит: монохром в духе Linear и Vercel — почти чёрно-белый, цвет только у ИП и статусов */
+:root[data-theme="graphite"]{ --bg:#F4F4F5; --surface:#FFFFFF; --sunk:#F7F7F8; --ink:#0A0A0B; --muted:#6B6B74; --line:rgba(0,0,0,.08);
+  --glass:rgba(255,255,255,.75); --glass-line:rgba(255,255,255,.8); --scrim:rgba(0,0,0,.45) }
+@media (prefers-color-scheme: dark){ :root[data-theme="graphite"]{ --bg:#08080A; --surface:#131316; --sunk:#1B1B1F; --ink:#EDEDEF; --muted:#8E8E98;
+  --line:rgba(255,255,255,.07); --glass:rgba(22,22,26,.7); --glass-line:rgba(255,255,255,.05) } }
+:root[data-theme="graphite"] body::before{opacity:.5}
+
+@media (prefers-reduced-motion:no-preference){.sheet{animation:up .26s cubic-bezier(.2,.8,.2,1)}@keyframes up{from{transform:translateY(24px) scale(.98);opacity:0}}}
 </style>
 </head>
 <body>
@@ -364,6 +477,7 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
           <div class="f"><label for="d-vatrate">НДС</label><select id="d-vatrate"></select></div>
           <div class="f"><label for="d-vat">в т.ч. НДС, ₽</label><input id="d-vat" class="mono" inputmode="decimal" autocomplete="off"></div>
           <div class="f wide"><label for="d-prepay">Предоплата</label><span style="display:flex;gap:8px;align-items:center;min-height:38px"><input type="checkbox" id="d-prepay"><span>платим до получения товара</span></span><span class="hint">Когда придёт УПД — он закроет этот счёт, второй раз не платим</span></div>
+          <div class="f wide"><label for="d-purpose">Своё назначение</label><textarea id="d-purpose" rows="2" maxlength="210" autocomplete="off"></textarea><span class="hint">Обычно пусто — назначение собирается из карточки поставщика. Если заполнено — пойдёт как есть, отдельной платёжкой</span></div>
         </div>
       </fieldset>
       <fieldset>
@@ -615,10 +729,14 @@ ol.howto{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
 
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="core.js?v=R6"></script>
+<script src="core.js?v=R7"></script>
 <script>
 (() => {
 "use strict";
+// Гостевая версия (папка /demo/ на сайте): вымышленные данные из demo.json, хранение только в этом браузере.
+// Свои ключи localStorage — ключ GitHub рабочего трекера с того же сайта демо не видит и не использует.
+const DEMO = /\/demo\//.test(location.pathname);
+const LSP = DEMO ? "platezhki.demo." : "platezhki.";
 const C = window.Core;
 const { digits, ru, ruShort, human, diff, today, kop, rub, rubIn, plural, sum, groupBy, TYPES, SOURCES, VATS, WD, DEFAULT_DAYS } = C;
 const $ = (s, r = document) => r.querySelector(s);
@@ -787,7 +905,10 @@ function renderScanList(){
   F("btnUpload").disabled = !INBOX.files.length;
 }
 async function loadPending(){
-  const p = F("scanPending"); p.textContent = "Проверяю, что ждёт разбора…";
+  const p = F("scanPending");
+  if (DEMO){ p.innerHTML = (DEMOQ.length ? `<b>Ждут разбора: ${DEMOQ.length}</b>` + DEMOQ.map(n => `<span>${esc(n)}</span>`).join("") : "Очередь разбора пуста.")
+    + "<span>Демо: файлы никуда не отправляются — через несколько секунд появится вымышленный «распознанный» документ.</span>"; return; }
+  p.textContent = "Проверяю, что ждёт разбора…";
   try {
     const r = await gh("GET", "/git/trees/" + INBOX.branch + "?recursive=1", null, INBOX.repo);
     if (!r.ok) throw ghFail(r.status);
@@ -798,6 +919,7 @@ async function loadPending(){
 }
 // Все выбранные файлы — одним коммитом через Git Data API (подходит и для файлов больше 1 МБ)
 F("btnUpload").onclick = async () => {
+  if (DEMO) return demoUpload();
   const o = orgById(S.org) || {}, note = F("scanNote").value.trim(), req = pressed("tagReq"), urgent = pressed("tagUrgent");
   const now = new Date(), day = C.iso(now), hhmm = now.toTimeString().slice(0, 8).replace(/:/g, "");
   const tag = C.orgShort(o.name || "").replace(/\s+/g, "") + (req ? "_РЕКВИЗИТЫ" : "") + (urgent ? "_СРОЧНО" : "");
@@ -834,6 +956,31 @@ F("btnUpload").onclick = async () => {
   }
 };
 
+// Демо: имитация облачного разбора — файлы не покидают браузер, через несколько секунд появляется вымышленный документ
+const DEMOQ = [];
+async function demoUpload(){
+  const orgId = S.org, req = pressed("tagReq"), urgent = pressed("tagUrgent"), files = INBOX.files.slice();
+  F("btnUpload").disabled = true;
+  for (const x of files){ x.st = "загружаю…"; renderScanList(); await new Promise(r => setTimeout(r, 350)); x.st = "✓"; renderScanList(); }
+  const label = files.map(x => x.f.name).join(", ");
+  DEMOQ.push(label);
+  toast(`Отправлено на разбор: ${files.length} ${plural(files.length, "файл", "файла", "файлов")}`);
+  INBOX.files = []; F("scanFiles").value = ""; F("scanNote").value = ""; resetTags(); renderScanList(); loadPending();
+  setTimeout(() => {
+    DEMOQ.splice(DEMOQ.indexOf(label), 1);
+    if (!F("ovScan").hidden) loadPending();
+    if (req){ toast("Разобрано: реквизиты поставщика сохранены, к оплате ничего не добавлено"); return; }
+    const pool = sups(), sp = pool[Math.floor(Math.random() * pool.length)];
+    const amount = Math.round((3000 + Math.random() * 45000) * 100), n = docs().length + 1;
+    const d = { id: newId(), orgId, type: Math.random() < .5 ? "upd" : "invoice", source: "paper", number: "СК-" + String(1000 + Math.floor(Math.random() * 9000)), numberPay: "",
+      date: today(), due: urgent ? today() : "", amount, vatRate: "22", vat: C.vatOf(amount, "22"), supplierInn: sp.inn, supplierName: sp.name,
+      status: "unpaid", payNo: "", exportedAt: "", paidAt: "", createdAt: today(), scan: label };
+    if (n % 3 === 0) d.review = "демо: НДС на скане читается неуверенно — сверьте и нажмите «Проверено»";
+    docs().push(d); persist(); render();
+    toast(`Разобрано: ${TYPES[d.type]} № ${d.number} от ${sp.name.replace(/^ООО |^ИП /, "")} на ${rub(amount)} ₽` + (d.review ? " — нужна проверка" : ""));
+  }, 4000 + Math.random() * 2000);
+}
+
 /* ---------- обновление: телефон долго держит старую копию страницы, поэтому версию проверяем сами ---------- */
 const APP_VERSION = (document.querySelector('meta[name="app-version"]') || {}).content || "";
 async function checkUpdate(){
@@ -866,9 +1013,28 @@ if (LOCAL){
   F("btnOpen").classList.add("primary");
 
 }
-(() => { const t = lsGet("gh.token"); if (t) ghLogin(t); else if (!LOCAL) setTimeout(() => F("ghToken").focus(), 50); })();
+(() => { if (DEMO) return demoStart(); const t = lsGet("gh.token"); if (t) ghLogin(t); else if (!LOCAL) setTimeout(() => F("ghToken").focus(), 50); })();
+// Демо: сохранённая в браузере копия или свежая из demo.json; даты сдвигаются так, чтобы demoAnchor стал сегодняшним днём
+async function demoStart(){
+  await Promise.resolve();   // дождаться конца скрипта: рисовать экран можно только после всех объявлений
+  F("openCard").hidden = true;
+  let d = null;
+  try { d = JSON.parse(lsGet("data") || "null"); } catch {}
+  if (!d){
+    try { d = await (await fetch("demo.json", { cache: "no-store" })).json(); }
+    catch { F("openCard").hidden = false; F("openLead").textContent = "Не удалось загрузить демо-данные. Обновите страницу."; return; }
+    const shift = C.diff(d.demoAnchor || today(), today());
+    const mv = v => C.validISO(v) ? C.addDays(v, shift) : v;
+    d.docs.forEach(x => ["date", "due", "paidAt", "exportedAt", "createdAt"].forEach(k => { x[k] = mv(x[k]); }));
+    d.suppliers.forEach(x => { x.updatedAt = mv(x.updatedAt); });
+    d.demoAnchor = today();
+  }
+  useData(d, "демо");
+  F("btnScan").hidden = false;
+}
 
 function persist(){
+  if (DEMO){ lsSet("data", JSON.stringify(S.data)); renderFileBar(); return; }
   FS.dirty = true; renderFileBar();
   if (GH.on){ clearTimeout(GH.timer); GH.timer = setTimeout(() => { FS.chain = FS.chain.then(ghSave); }, 1200); return; }
   if (!FS.handle) return;
@@ -883,6 +1049,12 @@ function persist(){
 }
 function renderFileBar(){
   const b = F("filebar"); b.hidden = !S.data; if (!S.data) return;
+  if (DEMO){
+    b.classList.remove("dirty");
+    b.innerHTML = `<span><span class="dot"></span><b>Демо-версия</b> · все организации, поставщики и суммы вымышлены, изменения сохраняются только в этом браузере</span><button class="btn sm" type="button" id="btnDemoReset">Сбросить демо</button>`;
+    F("btnDemoReset").onclick = () => { try { localStorage.removeItem(LSP + "data"); } catch {} location.reload(); };
+    return;
+  }
   if (GH.on){
     const draft = GH.branch !== "main";
     b.classList.toggle("dirty", !!GH.err || FS.dirty);
@@ -927,8 +1099,8 @@ $$(".overlay").forEach(ov => ov.addEventListener("click", e => { if (e.target ==
 document.addEventListener("keydown", e => { if (e.key === "Escape"){ const o = $$(".overlay").filter(x => !x.hidden).pop(); if (o) closeSheet(o); } });
 const newId = () => "d" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 // Запоминаем выбранный кабинет — только удобство, без него всё работает
-function lsGet(k){ try { return localStorage.getItem("platezhki." + k); } catch { return null; } }
-function lsSet(k, v){ try { localStorage.setItem("platezhki." + k, v); } catch {} }
+function lsGet(k){ try { return localStorage.getItem(LSP + k); } catch { return null; } }
+function lsSet(k, v){ try { localStorage.setItem(LSP + k, v); } catch {} }
 
 /* ---------- организации: у каждой свой цвет ---------- */
 // [основной, фон, текст на основном, цвет текста-акцента] для светлого и тёмного режима
@@ -954,7 +1126,20 @@ const theme = () => ORG_COLORS[S.theme] ? S.theme : "classic";
 const orgColor = id => { const set = ORG_COLORS[theme()], i = Math.max(0, orgs().findIndex(o => o.id === id)); return set[i % set.length][darkMQ.matches ? "dark" : "light"]; };
 darkMQ.addEventListener("change", () => render());
 S.theme = lsGet("theme") || "classic";
-const THEME_NAMES = { classic: "Классика", ocean: "Океан" };
+// Темы 2026: первый цвет — Н.В., второй — В.И., дальше запас
+ORG_COLORS.teal = [
+  { light: ["#0F6E6E", "#D7EEEC", "#FFFFFF", "#0D6464"], dark: ["#4FD1C5", "#123B38", "#071514", "#6ADCD1"] },   // Transformative Teal
+  { light: ["#E2604A", "#FBE3DC", "#FFFFFF", "#B9432F"], dark: ["#FF8A73", "#46241D", "#071514", "#FF9C88"] },   // коралл
+  { light: ["#3B5BA9", "#E0E7F6", "#FFFFFF", "#3B5BA9"], dark: ["#8FA9EC", "#1F2A47", "#071514", "#A6BAF0"] },
+  { light: ["#B88A1B", "#F6ECD2", "#0E2A2A", "#7E5E0E"], dark: ["#E8BE55", "#3B3016", "#071514", "#F0CD78"] }
+];
+ORG_COLORS.graphite = [
+  { light: ["#5E6AD2", "#E6E8F8", "#FFFFFF", "#4B57C2"], dark: ["#8B93F0", "#23264A", "#08080A", "#A1A8F4"] },   // индиго Linear
+  { light: ["#D9822B", "#FAEBDB", "#FFFFFF", "#A65F14"], dark: ["#F2A14F", "#3E2A15", "#08080A", "#F6B474"] },   // янтарь
+  { light: ["#2F9E6E", "#DCF2E8", "#FFFFFF", "#22805A"], dark: ["#5CD6A0", "#16362A", "#08080A", "#7BE0B3"] },
+  { light: ["#C2417A", "#F7DFEA", "#FFFFFF", "#A8336A"], dark: ["#F07AAE", "#41192C", "#08080A", "#F497C0"] }
+];
+const THEME_NAMES = { classic: "Классика", ocean: "Океан", teal: "Бирюза", graphite: "Графит" };
 function applyTheme(){ if (theme() === "classic") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme = theme();
   F("miThemeNow").textContent = THEME_NAMES[theme()]; renderThemeList(); }
 // Варианты темы с образцами цветов ИП: первые два — нынешние Н.В. и В.И.
@@ -1138,7 +1323,7 @@ function openDoc(d){
   F("d-date").value = x.date || ""; F("d-due").value = x.due || "";
   F("d-amount").value = rubIn(x.amount || 0); F("d-vatrate").value = x.vatRate || "22"; F("d-vat").value = rubIn(x.vat || 0);
   F("d-sinn").value = digits(x.supplierInn); F("d-sname").value = x.supplierName || "";
-  F("d-prepay").checked = !!x.prepay;
+  F("d-prepay").checked = !!x.prepay; F("d-purpose").value = x.purpose || "";
   S.vatTouched = !!d; S.payTouched = !!(d && d.numberPay);
   fillReq(supOf(x.supplierInn) || {});
   updateDocPreview(); openSheet("ovDoc");
@@ -1155,7 +1340,8 @@ const readReq = () => ({ name: F("d-sname").value.trim(), inn: digits(F("d-sinn"
 const readDoc = () => ({ orgId: F("d-org").value, type: F("d-type").value, source: F("d-source").value,
   number: F("d-number").value.trim(), numberPay: S.payTouched ? F("d-paynum").value.trim() : "",
   date: F("d-date").value, due: F("d-due").value, amount: kop(F("d-amount").value), vatRate: F("d-vatrate").value, vat: kop(F("d-vat").value),
-  supplierInn: digits(F("d-sinn").value), supplierName: F("d-sname").value.trim(), prepay: F("d-prepay").checked });
+  supplierInn: digits(F("d-sinn").value), supplierName: F("d-sname").value.trim(), prepay: F("d-prepay").checked,
+  purpose: F("d-purpose").value.replace(/\s+/g, " ").trim() });
 function updateDocPreview(){
   const x = readDoc(), r = readReq(), txt = C.purposeText([x], r);
   F("docPreview").innerHTML = esc(txt) + `<span class="len">${txt.length} из 210 символов</span>`;
@@ -1192,6 +1378,7 @@ F("btnSave").addEventListener("click", () => {
     sup.history = [...(old.history || []), { account: old.account, bik: old.bik || "", bank: old.bank || "", until: today() }].slice(-10);
   if (old) Object.assign(old, sup); else sups().push({ history: [], ...sup });
   if (!x.supplierName) x.supplierName = r.name;
+  if (!x.purpose) { delete x.purpose; if (S.edit) delete S.edit.purpose; }
   if (S.edit) Object.assign(S.edit, x);
   else docs().push({ id: newId(), ...x, status: "unpaid", payNo: "", exportedAt: "", paidAt: "", createdAt: today(), scan: "" });
   persist(); render(); closeSheet(F("ovDoc")); toast("Сохранено");

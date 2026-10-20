@@ -114,6 +114,8 @@
   // «Оплата за запчасти Счет 3215, 3216 от 01.10.26г., 3301 от 03.10.26г. В том числе НДС 22.00 % - 710.85 р.»
   function purposeText(items, sup) {
     sup = sup || {};
+    // своё назначение документа (например, свет у арендодателя, когда в карточке — аренда); такой документ платится отдельно
+    if (items.length === 1 && ownPurpose(items[0])) return ownPurpose(items[0]);
     const subj = String(sup.subject || "").trim(), word = String(sup.docWord ?? "Счет").trim();
     const byDate = new Map();
     [...items].sort((a, b) => (a.date || "").localeCompare(b.date || "")).forEach(d => {
@@ -127,11 +129,14 @@
     const contract = String(sup.contract || "").trim();
     return ("Оплата" + (contract ? " по договору " + contract : "") + (subj ? " за " + subj : "") + (word ? " " + word : "") + " " + refs + " " + vat).replace(/\s+/g, " ").trim();
   }
-  // Делит документы поставщика на платёжки так, чтобы назначение влезло в 210 символов
+  const ownPurpose = d => String((d && d.purpose) || "").replace(/\s+/g, " ").trim();
+  // Делит документы поставщика на платёжки так, чтобы назначение влезло в 210 символов.
+  // Документ со своим назначением — всегда отдельная платёжка.
   function pack(items, sup) {
     const sorted = [...items].sort((a, b) => (a.date || "").localeCompare(b.date || ""));
     const chunks = []; let cur = [];
-    for (const d of sorted) { const t = [...cur, d]; if (cur.length && purposeText(t, sup).length > PURPOSE_MAX) { chunks.push(cur); cur = [d]; } else cur = t; }
+    for (const d of sorted) {
+      if (ownPurpose(d)) { chunks.push([d]); continue; } const t = [...cur, d]; if (cur.length && purposeText(t, sup).length > PURPOSE_MAX) { chunks.push(cur); cur = [d]; } else cur = t; }
     if (cur.length) chunks.push(cur);
     return chunks;
   }
@@ -408,7 +413,7 @@
     digits, kop, rub, rubIn, dot, vatOf, plural, sum, groupBy,
     innOk, accOk, corrOk, reqProblems,
     emptyData, orgById, supByInn, payDays, nextPay, stOf, dueOf, dueSource, inReview, openPrepays,
-    autoPayNum, payNum, purposeText, pack, exportPlan, markExported,
+    autoPayNum, payNum, ownPurpose, purposeText, pack, exportPlan, markExported,
     cp1251, build1C, shortName, orgShort, fileName, exportFiles, checkData, docId, merge3,
     decodeXml, edoName, parseEdoXml, edoPlan, edoApply
   };

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <!-- Версия программы: менять при каждой выкладке здесь и в ?v= у core.js ниже — по ней трекер узнаёт, что вышло обновление -->
-<meta name="app-version" content="R6.5">
+<meta name="app-version" content="R7">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#092634">
 <meta name="mobile-web-app-capable" content="yes">
@@ -477,6 +477,7 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
           <div class="f"><label for="d-vatrate">НДС</label><select id="d-vatrate"></select></div>
           <div class="f"><label for="d-vat">в т.ч. НДС, ₽</label><input id="d-vat" class="mono" inputmode="decimal" autocomplete="off"></div>
           <div class="f wide"><label for="d-prepay">Предоплата</label><span style="display:flex;gap:8px;align-items:center;min-height:38px"><input type="checkbox" id="d-prepay"><span>платим до получения товара</span></span><span class="hint">Когда придёт УПД — он закроет этот счёт, второй раз не платим</span></div>
+          <div class="f wide"><label for="d-purpose">Своё назначение</label><textarea id="d-purpose" rows="2" maxlength="210" autocomplete="off"></textarea><span class="hint">Обычно пусто — назначение собирается из карточки поставщика. Если заполнено — пойдёт как есть, отдельной платёжкой</span></div>
         </div>
       </fieldset>
       <fieldset>
@@ -728,7 +729,7 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
 
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="core.js?v=R6.5"></script>
+<script src="core.js?v=R7"></script>
 <script>
 (() => {
 "use strict";
@@ -1322,7 +1323,7 @@ function openDoc(d){
   F("d-date").value = x.date || ""; F("d-due").value = x.due || "";
   F("d-amount").value = rubIn(x.amount || 0); F("d-vatrate").value = x.vatRate || "22"; F("d-vat").value = rubIn(x.vat || 0);
   F("d-sinn").value = digits(x.supplierInn); F("d-sname").value = x.supplierName || "";
-  F("d-prepay").checked = !!x.prepay;
+  F("d-prepay").checked = !!x.prepay; F("d-purpose").value = x.purpose || "";
   S.vatTouched = !!d; S.payTouched = !!(d && d.numberPay);
   fillReq(supOf(x.supplierInn) || {});
   updateDocPreview(); openSheet("ovDoc");
@@ -1339,7 +1340,8 @@ const readReq = () => ({ name: F("d-sname").value.trim(), inn: digits(F("d-sinn"
 const readDoc = () => ({ orgId: F("d-org").value, type: F("d-type").value, source: F("d-source").value,
   number: F("d-number").value.trim(), numberPay: S.payTouched ? F("d-paynum").value.trim() : "",
   date: F("d-date").value, due: F("d-due").value, amount: kop(F("d-amount").value), vatRate: F("d-vatrate").value, vat: kop(F("d-vat").value),
-  supplierInn: digits(F("d-sinn").value), supplierName: F("d-sname").value.trim(), prepay: F("d-prepay").checked });
+  supplierInn: digits(F("d-sinn").value), supplierName: F("d-sname").value.trim(), prepay: F("d-prepay").checked,
+  purpose: F("d-purpose").value.replace(/\s+/g, " ").trim() });
 function updateDocPreview(){
   const x = readDoc(), r = readReq(), txt = C.purposeText([x], r);
   F("docPreview").innerHTML = esc(txt) + `<span class="len">${txt.length} из 210 символов</span>`;
@@ -1376,6 +1378,7 @@ F("btnSave").addEventListener("click", () => {
     sup.history = [...(old.history || []), { account: old.account, bik: old.bik || "", bank: old.bank || "", until: today() }].slice(-10);
   if (old) Object.assign(old, sup); else sups().push({ history: [], ...sup });
   if (!x.supplierName) x.supplierName = r.name;
+  if (!x.purpose) { delete x.purpose; if (S.edit) delete S.edit.purpose; }
   if (S.edit) Object.assign(S.edit, x);
   else docs().push({ id: newId(), ...x, status: "unpaid", payNo: "", exportedAt: "", paidAt: "", createdAt: today(), scan: "" });
   persist(); render(); closeSheet(F("ovDoc")); toast("Сохранено");
