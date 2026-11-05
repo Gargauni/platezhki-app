@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <!-- Версия программы: менять при каждой выкладке здесь и в ?v= у core.js ниже — по ней трекер узнаёт, что вышло обновление -->
-<meta name="app-version" content="R8">
+<meta name="app-version" content="R9">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#092634">
 <meta name="mobile-web-app-capable" content="yes">
@@ -268,6 +268,8 @@ legend{padding:0;margin-bottom:8px}
 .po-head{display:flex;flex-wrap:wrap;gap:6px 12px;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--sunk)}
 .po-docs{display:grid;padding:6px 14px}
 .po-docs label{display:flex;gap:10px;align-items:center;padding:4px 0;font-size:.9rem}
+.po-all{display:flex;gap:10px;align-items:center;padding:8px 14px;border:1px solid var(--line);border-radius:var(--r);font-size:.9rem;cursor:pointer}
+.po-all span{color:var(--muted);margin-left:auto}
 .po-out{display:grid;gap:8px;padding:10px 14px;border-top:1px solid var(--line)}
 .po-one{display:grid;gap:2px}
 .po-one .t{font-size:.8rem;color:var(--muted)}
@@ -730,7 +732,7 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
 
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="core.js?v=R8"></script>
+<script src="core.js?v=R9"></script>
 <script>
 (() => {
 "use strict";
@@ -1484,12 +1486,18 @@ F("btnExport").onclick = async () => {
   S.exp = { off: new Set() }; renderExport(); openSheet("ovExp");
 };
 F("e-no").addEventListener("input", renderExport); F("e-date").addEventListener("change", renderExport);
-F("expGroups").addEventListener("change", e => { const c = e.target.closest("input[data-doc]"); if (!c) return; if (c.checked) S.exp.off.delete(c.dataset.doc); else S.exp.off.add(c.dataset.doc); renderExport(); });
+// Общая галка: все документы, которые можно выгрузить (у поставщиков с ошибками в реквизитах галки заблокированы)
+const expIds = () => plan().groups.filter(G => !G.probs.length).flatMap(G => G.items.map(d => d.id));
+F("expGroups").addEventListener("change", e => {
+  if (e.target.id === "expAll"){ if (e.target.checked) S.exp.off.clear(); else expIds().forEach(id => S.exp.off.add(id)); renderExport(); return; }
+  const c = e.target.closest("input[data-doc]"); if (!c) return; if (c.checked) S.exp.off.delete(c.dataset.doc); else S.exp.off.add(c.dataset.doc); renderExport(); });
 const plan = () => C.exportPlan(S.data, F("e-org").value, { off: S.exp.off, startNo: Number(digits(F("e-no").value)) || 1 });
 function renderExport(){
   const P = plan();
   let html = P.orgProblems.length ? `<div class="banner bad">Реквизиты плательщика: ${esc(P.orgProblems.join("; "))}. Исправьте в «Реквизитах».</div>` : "";
   if (!P.groups.length) html += `<p style="color:var(--muted)">Неоплаченных документов у этой организации нет.</p>`;
+  const ids = P.groups.filter(G => !G.probs.length).flatMap(G => G.items.map(d => d.id)), on = ids.filter(id => !S.exp.off.has(id)).length;
+  if (ids.length > 1) html += `<label class="po-all"><input type="checkbox" id="expAll" ${on === ids.length ? "checked" : ""}><b>${on === ids.length ? "Снять все" : "Выбрать все"}</b><span>выбрано ${on} из ${ids.length}</span></label>`;
   html += P.groups.map(G => `<div class="po">
     <div class="po-head"><b>${esc((G.sup && G.sup.name) || G.items[0].supplierName || G.inn)}</b><span class="mono">${rub(sum(G.items.filter(d => !S.exp.off.has(d.id))))} ₽</span></div>
     <div class="po-docs">${G.items.slice().sort((a, b) => (a.date || "").localeCompare(b.date || "")).map(d => `<label><input type="checkbox" data-doc="${esc(d.id)}" ${S.exp.off.has(d.id) ? "" : "checked"} ${G.probs.length ? "disabled" : ""}>
@@ -1498,6 +1506,7 @@ function renderExport(){
       : `<div class="po-out">${G.chunks.map(o => `<div class="po-one"><span class="t">Платёжка № ${o.no} · ${rub(o.amount)} ₽ · ${o.purpose.length}/210</span><span class="preview">${esc(o.purpose)}</span></div>`).join("")}</div>`}
   </div>`).join("");
   F("expGroups").innerHTML = html;
+  if (F("expAll")) F("expAll").indeterminate = on > 0 && on < ids.length;
   const nd = P.orders.reduce((n, o) => n + o.docs.length, 0);
   F("expTotal").innerHTML = P.orders.length ? `<span>${nd} ${plural(nd, "документ", "документа", "документов")} → <b>${P.orders.length} ${plural(P.orders.length, "платёжка", "платёжки", "платёжек")}</b></span><span class="mono">${rub(sum(P.orders))} ₽</span>` : "";
   F("btnDownload").disabled = !P.orders.length || P.orgProblems.length > 0;
