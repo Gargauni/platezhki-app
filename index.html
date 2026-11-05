@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <!-- Версия программы: менять при каждой выкладке здесь и в ?v= у core.js ниже — по ней трекер узнаёт, что вышло обновление -->
-<meta name="app-version" content="R9">
+<meta name="app-version" content="R10">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#092634">
 <meta name="mobile-web-app-capable" content="yes">
@@ -600,7 +600,6 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
             <div class="f"><label for="o-corr">Корр. счёт</label><input id="o-corr" class="mono" inputmode="numeric" autocomplete="off"></div>
             <div class="f"><label for="o-bank">Банк</label><input id="o-bank" autocomplete="off"></div>
             <div class="f"><label for="o-city">Город банка</label><input id="o-city" placeholder="г. Москва" autocomplete="off"></div>
-            <div class="f"><label for="o-next">Следующий № платёжки</label><input id="o-next" class="mono" inputmode="numeric" autocomplete="off"></div>
             <div class="f wide"><label>Платёжные дни</label><div class="days" id="o-days"></div></div>
           </div>
           <div id="orgErrs"></div>
@@ -650,7 +649,6 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
       <input type="hidden" id="e-org">
       <div class="grid">
         <div class="f"><label for="e-date">Дата платёжек</label><input id="e-date" type="date"></div>
-        <div class="f"><label for="e-no">Первый номер</label><input id="e-no" class="mono" inputmode="numeric"></div>
       </div>
       <div id="expGroups" class="list"></div>
       <div class="total" id="expTotal"></div>
@@ -732,7 +730,7 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
 
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="core.js?v=R9"></script>
+<script src="core.js?v=R10"></script>
 <script>
 (() => {
 "use strict";
@@ -1420,7 +1418,7 @@ function fillOrgForm(o){
   S.orgEdit = o || null; F("orgFormTitle").textContent = o ? o.name : "Новая организация";
   const v = o || {};
   F("o-name").value = v.name || ""; F("o-inn").value = v.inn || ""; F("o-kpp").value = v.kpp || ""; F("o-acc").value = v.account || "";
-  F("o-bik").value = v.bik || ""; F("o-corr").value = v.corr || ""; F("o-bank").value = v.bank || ""; F("o-city").value = v.city || ""; F("o-next").value = v.nextNo || "";
+  F("o-bik").value = v.bik || ""; F("o-corr").value = v.corr || ""; F("o-bank").value = v.bank || ""; F("o-city").value = v.city || "";
   const days = (o && o.payDays) || DEFAULT_DAYS; $$("#o-days input").forEach(i => { i.checked = days.includes(Number(i.value)); });
   F("orgErrs").innerHTML = ""; F("btnOrgDel").hidden = !o;
 }
@@ -1445,7 +1443,7 @@ F("btnDelOrgGo").onclick = () => {
 F("btnOrgSave").onclick = () => {
   const o = { name: F("o-name").value.trim(), inn: digits(F("o-inn").value), kpp: digits(F("o-kpp").value), account: digits(F("o-acc").value),
     bik: digits(F("o-bik").value), corr: digits(F("o-corr").value), bank: F("o-bank").value.trim(), city: F("o-city").value.trim(),
-    nextNo: Number(digits(F("o-next").value)) || 1, payDays: $$("#o-days input").filter(i => i.checked).map(i => Number(i.value)) };
+    payDays: $$("#o-days input").filter(i => i.checked).map(i => Number(i.value)) };
   if (!o.payDays.length) o.payDays = DEFAULT_DAYS;
   if (!o.name || !o.inn) return toast("Нужны хотя бы название и ИНН");
   const p = C.reqProblems(o); F("orgErrs").innerHTML = p.length ? `<div class="banner">Сохранено, но проверьте: ${esc(p.join("; "))}</div>` : "";
@@ -1479,19 +1477,19 @@ F("btnExport").onclick = async () => {
   if (!orgs().length){ F("e-payer").hidden = true; F("expGroups").innerHTML = `<div class="banner">Сначала добавьте свою организацию в «Реквизиты».</div>`; F("expTotal").innerHTML = ""; F("btnDownload").disabled = true; openSheet("ovExp"); return; }
   // Платит всегда организация открытого кабинета — чтобы не перепутать счёт списания
   const o = orgById(S.org);
-  F("e-org").value = o.id; F("e-date").value = today(); F("e-no").value = o.nextNo || 1;
+  F("e-org").value = o.id; F("e-date").value = today();
   F("expTitle").textContent = "Выгрузка в банк — " + C.orgShort(o.name);
   F("e-payer").hidden = false;
   F("e-payer").innerHTML = `<b>Платит: ${esc(o.name)}</b><span class="mono">р/с ${esc(digits(o.account))} · ${esc(o.bank || "")}</span>`;
   S.exp = { off: new Set() }; renderExport(); openSheet("ovExp");
 };
-F("e-no").addEventListener("input", renderExport); F("e-date").addEventListener("change", renderExport);
+F("e-date").addEventListener("change", renderExport);
 // Общая галка: все документы, которые можно выгрузить (у поставщиков с ошибками в реквизитах галки заблокированы)
 const expIds = () => plan().groups.filter(G => !G.probs.length).flatMap(G => G.items.map(d => d.id));
 F("expGroups").addEventListener("change", e => {
   if (e.target.id === "expAll"){ if (e.target.checked) S.exp.off.clear(); else expIds().forEach(id => S.exp.off.add(id)); renderExport(); return; }
   const c = e.target.closest("input[data-doc]"); if (!c) return; if (c.checked) S.exp.off.delete(c.dataset.doc); else S.exp.off.add(c.dataset.doc); renderExport(); });
-const plan = () => C.exportPlan(S.data, F("e-org").value, { off: S.exp.off, startNo: Number(digits(F("e-no").value)) || 1 });
+const plan = () => C.exportPlan(S.data, F("e-org").value, { off: S.exp.off });
 function renderExport(){
   const P = plan();
   let html = P.orgProblems.length ? `<div class="banner bad">Реквизиты плательщика: ${esc(P.orgProblems.join("; "))}. Исправьте в «Реквизитах».</div>` : "";
@@ -1503,7 +1501,7 @@ function renderExport(){
     <div class="po-docs">${G.items.slice().sort((a, b) => (a.date || "").localeCompare(b.date || "")).map(d => `<label><input type="checkbox" data-doc="${esc(d.id)}" ${S.exp.off.has(d.id) ? "" : "checked"} ${G.probs.length ? "disabled" : ""}>
       <span class="mono">${esc(C.payNum(d))} от ${ruShort(d.date)}</span><span style="margin-left:auto" class="mono">${rub(d.amount)} ₽</span></label>`).join("")}</div>
     ${G.probs.length ? `<div class="g-warn">Не выгрузится: ${esc(G.probs.join("; "))}.</div>`
-      : `<div class="po-out">${G.chunks.map(o => `<div class="po-one"><span class="t">Платёжка № ${o.no} · ${rub(o.amount)} ₽ · ${o.purpose.length}/210</span><span class="preview">${esc(o.purpose)}</span></div>`).join("")}</div>`}
+      : `<div class="po-out">${G.chunks.map(o => `<div class="po-one"><span class="t">Платёжка · ${rub(o.amount)} ₽ · ${o.purpose.length}/210</span><span class="preview">${esc(o.purpose)}</span></div>`).join("")}</div>`}
   </div>`).join("");
   F("expGroups").innerHTML = html;
   if (F("expAll")) F("expAll").indeterminate = on > 0 && on < ids.length;
@@ -1532,7 +1530,7 @@ F("btnDownload").onclick = () => {
     <ol class="howto">
       <li>${phone ? "Скачайте каждый файл кнопкой выше. На iPhone они попадают в «Файлы» → «Загрузки» (в Яндекс Браузере — в его «Загрузки»). «Сохранить в Файлы» — выбрать папку самому." : `${files.length > 1 ? "Файлы сохранены" : "Файл сохранён"} в папку «Загрузки». Если какого-то нет — «Скачать ещё раз».`}</li>
       <li>В интернет-банке ${esc(P.org.bank || "")} откройте импорт платёжных поручений из 1С и загрузите ${files.length > 1 ? "каждый файл" : "файл"} — в имени файла есть поставщик и номер платёжки.</li>
-      <li>Сверьте суммы и подпишите. Номера платёжек: ${P.orders[0].no}–${P.orders[P.orders.length - 1].no}.</li>
+      <li>Сверьте суммы и подпишите. Номера платёжкам банк поставит сам.</li>
       <li>${GH.on ? "Отметки сохраняются на GitHub сами — ничего нажимать не нужно." : "В GitHub Desktop сделайте Commit и Push, чтобы статусы дошли до личного ПК."}</li>
     </ol>
     <div class="actions"><button class="btn primary" type="button" id="btnDonePaid">Банк исполнил — отметить оплаченными</button></div>`;

@@ -150,7 +150,8 @@
     if (!org) return { org: null, orgProblems: ["организация не найдена"], groups: [], orders: [] };
     const docs = data.docs.filter(d => d.orgId === org.id && (d.status || "unpaid") === "unpaid" && !inReview(d));
     const g = groupBy(docs, d => digits(d.supplierInn));
-    let no = Number(opts.startNo) || Number(org.nextNo) || 1;
+    // Номер платёжке ставит банк при загрузке файла; no — только порядковый номер внутри этой выгрузки
+    let no = 1;
     const groups = [], orders = [];
     const entries = [...g].sort((a, b) => ((supByInn(data, a[0]) || {}).name || "").localeCompare((supByInn(data, b[0]) || {}).name || ""));
     for (const [inn, items] of entries) {
@@ -165,13 +166,12 @@
     }
     return { org, orgProblems: reqProblems(org), groups, orders };
   }
-  // Отмечает документы выгруженными и двигает нумерацию платёжек
+  // Отмечает документы выгруженными
   function markExported(data, plan, dateISO) {
     for (const o of plan.orders) for (const d of o.docs) {
       const doc = data.docs.find(x => x.id === d.id);
-      if (doc) { doc.status = "bank"; doc.payNo = String(o.no); doc.exportedAt = dateISO; }
+      if (doc) { doc.status = "bank"; doc.payNo = ""; doc.exportedAt = dateISO; }
     }
-    if (plan.orders.length) { const org = orgById(data, plan.org.id); org.nextNo = plan.orders[plan.orders.length - 1].no + 1; }
   }
 
   /* ---------- файл для банка ---------- */
@@ -195,7 +195,7 @@
       "РасчСчет=" + digits(org.account), "Документ=Платежное поручение"];
     for (const o of orders) {
       const s = o.sup;
-      L.push("СекцияДокумент=Платежное поручение", "Номер=" + o.no, "Дата=" + ru(dateISO), "Сумма=" + dot(o.amount),
+      L.push("СекцияДокумент=Платежное поручение", "Номер=", "Дата=" + ru(dateISO), "Сумма=" + dot(o.amount),
         "ПлательщикСчет=" + digits(org.account), "Плательщик=" + clean(org.name), "ПлательщикИНН=" + digits(org.inn), "ПлательщикКПП=" + digits(org.kpp),
         "Плательщик1=" + clean(org.name), "ПлательщикРасчСчет=" + digits(org.account), "ПлательщикБанк1=" + clean(org.bank), "ПлательщикБанк2=" + clean(org.city),
         "ПлательщикБИК=" + digits(org.bik), "ПлательщикКорсчет=" + digits(org.corr),
@@ -218,12 +218,10 @@
     const m = String(name || "").trim().match(/^(?:ИП|Индивидуальный предприниматель)\s+(\S+)\s+(\S)\S*\s+(\S)\S*/i);
     return m ? m[1] + " " + m[2] + "." + m[3] + "." : shortName(name);
   }
-  // Имя файла для банка: «2026-10-15 Гуцу Н.В. - Ф.А. Логистик №245.txt», для нескольких платёжек «№245-246»
+  // Имя файла для банка: «2026-10-15 Гуцу Н.В. - Ф.А. Логистик.txt»
   function fileName(dateISO, sup, orders, org) {
-    const nos = (orders || []).map(o => o.no);
-    const no = !nos.length ? "" : " №" + (nos.length > 1 ? Math.min(...nos) + "-" + Math.max(...nos) : nos[0]);
     const payer = org && org.name ? orgShort(org.name).replace(/[\\/:*?"<>|]+/g, " ") + " - " : "";
-    return dateISO + " " + payer + shortName(sup && sup.name || sup && sup.inn) + no + ".txt";
+    return dateISO + " " + payer + shortName(sup && sup.name || sup && sup.inn) + ".txt";
   }
   // Файлы для банка: по одному на поставщика, в порядке платёжек
   function exportFiles(org, orders, dateISO, now) {
